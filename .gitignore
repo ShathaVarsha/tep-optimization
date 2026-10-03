@@ -30,6 +30,7 @@ build/
 *.tmp
 *.log
 *.zip
+*Desktop*.ini
 results/*.html
 
 # Keep all data, results, plots, and source files
