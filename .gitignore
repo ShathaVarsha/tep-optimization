@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Pytest cache
+.pytest_cache/
+.cache/
+
+# Distribution
+.dist/
+dist/
+build/
+*.egg-info/
+
+# Temp / scratch files
+*.tmp
+*.log
+*.zip
+results/*.html
+
+# Keep all data, results, plots, and source files
+# The TEP .dat files are required at runtime - DO NOT exclude them
+

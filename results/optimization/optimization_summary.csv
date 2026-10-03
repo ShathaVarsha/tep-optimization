@@ -1,0 +1,3 @@
+Problem,Success,Objective,Baseline value,Optimized value,Improvement (%),Iterations
+Production maximization,True,Product Flow (m3/hr),22.909329999999997,23.59882500922943,3.0096690266779182,0
+Cost minimization,True,Operating Cost ($/hr),106.40134930499505,77.30272920550797,27.347980349456936,0

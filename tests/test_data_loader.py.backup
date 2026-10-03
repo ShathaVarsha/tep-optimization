@@ -1,0 +1,119 @@
+"""Automated test suite for TEP data loader, dimension auditing, and descriptive statistics.
+
+Author: Team B4 (23MNG336: Operational Research)
+"""
+
+import pytest
+import numpy as np
+import pandas as pd
+from pathlib import Path
+
+from src.data.tep_loader import (
+    load_tep_dataset,
+    audit_dataset,
+    audit_all_datasets,
+    TEP_COLUMN_NAMES,
+    MEASURED_VARS,
+    MANIPULATED_VARS,
+)
+from src.data.statistics_generator import (
+    generate_summary_statistics,
+    compute_correlation_matrix,
+    detect_outliers_iqr,
+    get_variable_profile,
+)
+
+
+def test_column_definitions():
+    """Verify that standardized column names strictly number 52 variables (41 XMEAS + 11 XMV)."""
+    assert len(MEASURED_VARS) == 41
+    assert len(MANIPULATED_VARS) == 11
+    assert len(TEP_COLUMN_NAMES) == 52
+    assert MEASURED_VARS[0] == "XMEAS_01"
+    assert MEASURED_VARS[-1] == "XMEAS_41"
+    assert MANIPULATED_VARS[0] == "XMV_01"
+    assert MANIPULATED_VARS[-1] == "XMV_11"
+
+
+def test_load_d00_normal_training_transposition():
+    """Verify loading of d00.dat, ensuring transposition correction from (52, 500) to (500, 52)."""
+    df = load_tep_dataset("d00")
+    assert isinstance(df, pd.DataFrame)
+    assert df.shape == (500, 52), f"Expected shape (500, 52), got {df.shape}"
+    assert list(df.columns) == TEP_COLUMN_NAMES
+    assert df.isna().sum().sum() == 0, "d00 contains missing values"
+    assert np.isinf(df.to_numpy()).sum() == 0, "d00 contains infinite values"
+    assert df.attrs["is_transposed_origin"] is True
+    assert df.attrs["is_fault"] is False
+
+
+def test_load_d00_te_normal_testing():
+    """Verify loading of d00_te.dat with documented shape (960, 52)."""
+    df = load_tep_dataset("d00_te")
+    assert df.shape == (960, 52), f"Expected shape (960, 52), got {df.shape}"
+    assert list(df.columns) == TEP_COLUMN_NAMES
+    assert df.isna().sum().sum() == 0
+    assert np.isinf(df.to_numpy()).sum() == 0
+    assert df.attrs["is_transposed_origin"] is False
+    assert df.attrs["is_fault"] is False
+
+
+def test_load_fault_dataset():
+    """Verify loading of Fault 1 training (480, 52) and testing (960, 52) sets."""
+    df_train = load_tep_dataset("d01")
+    assert df_train.shape == (480, 52)
+    assert df_train.attrs["is_fault"] is True
+    assert df_train.isna().sum().sum() == 0
+
+    df_test = load_tep_dataset("d01_te")
+    assert df_test.shape == (960, 52)
+    assert df_test.attrs["is_fault"] is True
+    assert df_test.isna().sum().sum() == 0
+
+
+def test_audit_dataset_single():
+    """Verify audit dictionary schema and integrity flags."""
+    record = audit_dataset("d00")
+    assert record["dataset_id"] == "d00"
+    assert record["raw_shape"] == (52, 500)
+    assert record["documented_shape"] == (480, 52)
+    assert record["dimension_matches_doc"] is False
+    assert record["is_transposed"] is True
+    assert record["final_shape"] == (500, 52)
+    assert record["nan_count"] == 0
+    assert record["inf_count"] == 0
+
+
+def test_audit_all_44_datasets():
+    """Perform audit across all 44 benchmark datasets and assert 100% data integrity."""
+    audit_df = audit_all_datasets()
+    assert len(audit_df) == 44, f"Expected 44 files, found {len(audit_df)}"
+    assert (audit_df["nan_count"] == 0).all(), "Found datasets with NaN values"
+    assert (audit_df["inf_count"] == 0).all(), "Found datasets with Inf values"
+    
+    # Confirm that every single dataset ends up with exactly 52 columns
+    for final_shape in audit_df["final_shape"]:
+        assert final_shape[1] == 52, f"Expected 52 columns, got {final_shape}"
+
+
+def test_statistics_generator_functions():
+    """Verify that on-demand descriptive statistics and correlation matrices produce valid results."""
+    df = load_tep_dataset("d00")
+    stats = generate_summary_statistics(df)
+    assert stats.shape[0] == 52
+    assert "mean" in stats.columns
+    assert "std" in stats.columns
+    assert "skewness" in stats.columns
+    assert "iqr" in stats.columns
+
+    corr = compute_correlation_matrix(df, variables=["XMEAS_01", "XMEAS_02", "XMV_01"])
+    assert corr.shape == (3, 3)
+    np.testing.assert_allclose(np.diag(corr.to_numpy()), 1.0, rtol=1e-5)
+
+    outliers = detect_outliers_iqr(df[["XMEAS_01", "XMEAS_02"]])
+    assert len(outliers) == 2
+    assert "outlier_count" in outliers.columns
+
+    profile = get_variable_profile(df, "XMEAS_07")
+    assert profile["variable"] == "XMEAS_07"
+    assert profile["count"] == 500.0

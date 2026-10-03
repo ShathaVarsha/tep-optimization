@@ -1,0 +1,75 @@
+problem,section,parameter,value
+production_maximization,,success,True
+production_maximization,,problem,production_maximization
+production_maximization,,objective_name,Predicted product flow (m3/hr)
+production_maximization,,baseline_value,22.909329999999997
+production_maximization,,optimized_value,24.681289195937975
+production_maximization,,improvement_percent,7.734661799092238
+production_maximization,baseline_inputs,XMV_01,63.031124
+production_maximization,baseline_inputs,XMV_02,54.005688
+production_maximization,baseline_inputs,XMV_03,24.721266000000004
+production_maximization,baseline_inputs,XMV_04,61.32237800000001
+production_maximization,baseline_inputs,XMV_05,22.252254
+production_maximization,baseline_inputs,XMV_06,40.08182000000001
+production_maximization,baseline_inputs,XMV_09,47.46115399999999
+production_maximization,baseline_inputs,XMV_11,18.215881999999997
+production_maximization,optimized_inputs,XMV_01,64.436
+production_maximization,optimized_inputs,XMV_02,55.111
+production_maximization,optimized_inputs,XMV_03,33.682
+production_maximization,optimized_inputs,XMV_04,57.903
+production_maximization,optimized_inputs,XMV_05,20.810992134874084
+production_maximization,optimized_inputs,XMV_06,36.385379989897906
+production_maximization,optimized_inputs,XMV_09,42.162
+production_maximization,optimized_inputs,XMV_11,14.009
+production_maximization,predicted_responses,XMEAS_17,24.681289195937975
+production_maximization,predicted_responses,XMEAS_07,2702.6847033271292
+production_maximization,predicted_responses,XMEAS_10,0.30509000000000003
+production_maximization,predicted_responses,XMEAS_19,210.55348631914916
+production_maximization,predicted_responses,XMEAS_20,337.77
+production_maximization,baseline_predictions,XMEAS_17,22.909329999999997
+production_maximization,baseline_predictions,XMEAS_07,2705.3974000000003
+production_maximization,baseline_predictions,XMEAS_10,0.33759224000000004
+production_maximization,baseline_predictions,XMEAS_19,230.2822
+production_maximization,baseline_predictions,XMEAS_20,341.46948
+production_maximization,,solver_message,Optimization terminated successfully. (HiGHS Status 7: Optimal)
+production_maximization,,iterations,2
+production_maximization,constraints,pressure_limit,2800
+production_maximization,constraints,compressor_limit,355
+production_maximization,constraints,trust_region,"baseline +/- 10 percentage points, clipped to [0,100]"
+cost_minimization,,success,True
+cost_minimization,,problem,cost_minimization
+cost_minimization,,objective_name,Approximate operating cost ($/hr)
+cost_minimization,,baseline_value,106.40134930499505
+cost_minimization,,optimized_value,97.72522544114
+cost_minimization,,improvement_percent,8.154148345417411
+cost_minimization,baseline_inputs,XMV_01,63.031124
+cost_minimization,baseline_inputs,XMV_02,54.005688
+cost_minimization,baseline_inputs,XMV_03,24.721266000000004
+cost_minimization,baseline_inputs,XMV_04,61.32237800000001
+cost_minimization,baseline_inputs,XMV_05,22.252254
+cost_minimization,baseline_inputs,XMV_06,40.08182000000001
+cost_minimization,baseline_inputs,XMV_09,47.46115399999999
+cost_minimization,baseline_inputs,XMV_11,18.215881999999997
+cost_minimization,optimized_inputs,XMV_01,61.296
+cost_minimization,optimized_inputs,XMV_02,54.989882713878124
+cost_minimization,optimized_inputs,XMV_03,17.781
+cost_minimization,optimized_inputs,XMV_04,57.903
+cost_minimization,optimized_inputs,XMV_05,21.14690038533035
+cost_minimization,optimized_inputs,XMV_06,36.128066096783165
+cost_minimization,optimized_inputs,XMV_09,42.162
+cost_minimization,optimized_inputs,XMV_11,18.258816678657066
+cost_minimization,predicted_responses,XMEAS_17,22.909329999999997
+cost_minimization,predicted_responses,XMEAS_07,2698.669427358212
+cost_minimization,predicted_responses,XMEAS_10,0.30509
+cost_minimization,predicted_responses,XMEAS_19,209.37
+cost_minimization,predicted_responses,XMEAS_20,337.77
+cost_minimization,baseline_predictions,XMEAS_17,22.909329999999997
+cost_minimization,baseline_predictions,XMEAS_07,2705.3974000000003
+cost_minimization,baseline_predictions,XMEAS_10,0.33759224000000004
+cost_minimization,baseline_predictions,XMEAS_19,230.2822
+cost_minimization,baseline_predictions,XMEAS_20,341.46948
+cost_minimization,,solver_message,Optimization terminated successfully. (HiGHS Status 7: Optimal)
+cost_minimization,,iterations,4
+cost_minimization,constraints,pressure_limit,2800
+cost_minimization,constraints,compressor_limit,355
+cost_minimization,constraints,trust_region,"baseline +/- 10 percentage points, clipped to [0,100]"

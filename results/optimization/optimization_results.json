@@ -1,0 +1,124 @@
+{
+  "dataset": "d00",
+  "dataset_shape": [
+    500,
+    52
+  ],
+  "baseline_predictions": {
+    "XMEAS_17": 22.909329999999997,
+    "XMEAS_07": 2705.3974000000003,
+    "XMEAS_10": 0.33759224000000004,
+    "XMEAS_19": 230.2822,
+    "XMEAS_20": 341.46948
+  },
+  "production_maximization": {
+    "success": true,
+    "status_message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+    "problem_type": "LP Formulation 1",
+    "objective_name": "Product Flow (m3/hr)",
+    "objective_value": 23.59882500922943,
+    "baseline_objective_value": 22.909329999999997,
+    "improvement_pct": 3.0096690266779182,
+    "u_optimal": {
+      "XMV_01": 53.031124,
+      "XMV_02": 44.005688,
+      "XMV_03": 14.721266000000004,
+      "XMV_04": 51.32237800000001,
+      "XMV_05": 29.311058920150415,
+      "XMV_06": 30.081820000000008,
+      "XMV_09": 57.46115399999999
+    },
+    "u_baseline": {
+      "XMV_01": 63.031124,
+      "XMV_02": 54.005688,
+      "XMV_03": 24.721266000000004,
+      "XMV_04": 61.32237800000001,
+      "XMV_05": 22.252254,
+      "XMV_06": 40.08182000000001,
+      "XMV_09": 47.46115399999999
+    },
+    "predicted_responses": {
+      "XMEAS_17": 23.59882500922943,
+      "XMEAS_07": 2743.9112088884913,
+      "XMEAS_10": 0.269450816947416,
+      "XMEAS_19": 266.2470542211052,
+      "XMEAS_20": 355.0
+    },
+    "shadow_prices": {
+      "Reactor Pressure Limit": -0.0,
+      "Compressor Power Limit": -0.003861234022412088
+    },
+    "slack_values": {
+      "Reactor Pressure Slack (kPa)": 56.088791111508726,
+      "Compressor Power Slack (kW)": 0.0
+    },
+    "reduced_costs": {
+      "XMV_01": -0.015951803708532674,
+      "XMV_02": -0.005041161475330997,
+      "XMV_03": -0.00528663823334542,
+      "XMV_04": -0.02204281277713392,
+      "XMV_05": 0.0,
+      "XMV_06": -0.014200546012919646,
+      "XMV_09": -0.001202088299187711
+    },
+    "binding_constraints": [
+      "Compressor Power Slack (kW)"
+    ],
+    "iterations": 0
+  },
+  "cost_minimization": {
+    "success": true,
+    "status_message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+    "problem_type": "LP Formulation 2",
+    "objective_name": "Operating Cost ($/hr)",
+    "objective_value": 77.30272920550797,
+    "baseline_objective_value": 106.40134930499505,
+    "improvement_pct": 27.347980349456936,
+    "u_optimal": {
+      "XMV_01": 53.031124,
+      "XMV_02": 44.005688,
+      "XMV_03": 34.721266,
+      "XMV_04": 51.32237800000001,
+      "XMV_05": 12.252254,
+      "XMV_06": 30.081820000000008,
+      "XMV_09": 37.46115399999999
+    },
+    "u_baseline": {
+      "XMV_01": 63.031124,
+      "XMV_02": 54.005688,
+      "XMV_03": 24.721266000000004,
+      "XMV_04": 61.32237800000001,
+      "XMV_05": 22.252254,
+      "XMV_06": 40.08182000000001,
+      "XMV_09": 47.46115399999999
+    },
+    "predicted_responses": {
+      "XMEAS_17": 23.299379988289235,
+      "XMEAS_07": 2620.0756928698324,
+      "XMEAS_10": 0.23202513350639264,
+      "XMEAS_19": 183.55150488736183,
+      "XMEAS_20": 311.0579624791715
+    },
+    "shadow_prices": {
+      "Production Quota Target (m3/hr)": -0.0,
+      "Reactor Pressure Limit (kPa)": -0.0,
+      "Compressor Power Limit (kW)": -0.0
+    },
+    "slack_values": {
+      "Production Surplus (m3/hr)": 0.3900499882892383,
+      "Reactor Pressure Slack (kPa)": 179.92430713016756,
+      "Compressor Power Slack (kW)": 43.94203752082848
+    },
+    "reduced_costs": {
+      "XMV_01": -0.011373129461935201,
+      "XMV_02": -0.20091577568367855,
+      "XMV_03": -0.013846183722190548,
+      "XMV_04": -0.04219544819610172,
+      "XMV_05": -0.6094133572465136,
+      "XMV_06": -1.950570204392915,
+      "XMV_09": -0.08154791124537474
+    },
+    "binding_constraints": [],
+    "iterations": 0
+  }
+}

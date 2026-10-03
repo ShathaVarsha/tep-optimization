@@ -1,0 +1,4 @@
+Problem,Objective,Baseline Value,Optimized Value,Improvement (%),Iterations
+Production Maximization,Product Flow (m3/hr),22.9093,24.6813,7.73,2
+Operating Cost Minimization,Operating Cost ($/hr),106.4015,97.7254,8.15,4
+Total Energy Minimization,Total Equivalent Process Power (kW),485.8436,469.0334,3.46,4

@@ -1,0 +1,15 @@
+8-variable optimization: sensitivity-input report
+
+This report extracts the saved optimization-result metadata, decision-variable
+settings, predicted responses, and available constraint information.
+
+Important limitations:
+- This is NOT a formal LP shadow-price or dual-value sensitivity report.
+- The saved JSON does not contain re-optimized results under perturbed
+  coefficients or right-hand-side constraints.
+- Predictions are surrogate-model estimates, not validated plant outcomes.
+- Treat reported cost changes as preliminary estimates.
+
+For formal sensitivity analysis, the optimization code must retain the LP
+solver's dual values, slack values, and objective coefficients, or rerun the
+model under controlled perturbations.

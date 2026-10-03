@@ -1,0 +1,3 @@
+Scenario,Metric,Baseline,Optimized prediction,Change (%),Interpretation
+Production maximization,Product flow (m3/hr),22.909329999999997,24.681289195937975,7.734661799092238,Predicted product-flow increase
+Cost minimization,Approximate operating cost ($/hr),106.40134930499505,97.72522544114,-8.154148345417411,Predicted cost reduction

@@ -1,0 +1,45 @@
+file_name,dataset_id,condition_type,is_fault,raw_shape,documented_shape,dimension_matches_doc,is_transposed,final_shape,nan_count,inf_count,min_value,max_value
+d00.dat,d00,Normal Training,False,"(52, 500)","(500, 52)",True,True,"(500, 52)",0,0,-0.0024946,4600.7
+d00_te.dat,d00_te,Normal Testing,False,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0063811,4634.9
+d01.dat,d01,Fault 01 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0070527,4745.6
+d01_te.dat,d01_te,Fault 01 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.012637,4710.0
+d02.dat,d02,Fault 02 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0061583,4788.3
+d02_te.dat,d02_te,Fault 02 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0076308,4775.5
+d03.dat,d03,Fault 03 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.001637,4665.3
+d03_te.dat,d03_te,Fault 03 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.015286,4636.0
+d04.dat,d04,Fault 04 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0051487,4599.5
+d04_te.dat,d04_te,Fault 04 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0057408,4636.1
+d05.dat,d05,Fault 05 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0010598,4730.9
+d05_te.dat,d05_te,Fault 05 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0038546,4721.3
+d06.dat,d06,Fault 06 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.045435,4602.9
+d06_te.dat,d06_te,Fault 06 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0027395,4611.4
+d07.dat,d07,Fault 07 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.010213,4841.2
+d07_te.dat,d07_te,Fault 07 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.006964,4902.2
+d08.dat,d08,Fault 08 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.012678,4862.6
+d08_te.dat,d08_te,Fault 08 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.011084,4827.6
+d09.dat,d09,Fault 09 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0045781,4611.0
+d09_te.dat,d09_te,Fault 09 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0053002,4663.5
+d10.dat,d10,Fault 10 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0034991,4631.8
+d10_te.dat,d10_te,Fault 10 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0048672,4652.2
+d11.dat,d11,Fault 11 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0047657,4624.3
+d11_te.dat,d11_te,Fault 11 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0097379,4612.4
+d12.dat,d12,Fault 12 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.010165,4819.3
+d12_te.dat,d12_te,Fault 12 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0068956,4984.6
+d13.dat,d13,Fault 13 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0070112,4826.4
+d13_te.dat,d13_te,Fault 13 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0092787,4959.3
+d14.dat,d14,Fault 14 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0030575,4627.7
+d14_te.dat,d14_te,Fault 14 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0028705,4636.1
+d15.dat,d15,Fault 15 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.012513,4643.7
+d15_te.dat,d15_te,Fault 15 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.007982,4642.9
+d16.dat,d16,Fault 16 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0045095,4653.6
+d16_te.dat,d16_te,Fault 16 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0090669,4644.2
+d17.dat,d17,Fault 17 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0092798,4620.4
+d17_te.dat,d17_te,Fault 17 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.012818,4632.0
+d18.dat,d18,Fault 18 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.25399,5003.7
+d18_te.dat,d18_te,Fault 18 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.58124,4841.6
+d19.dat,d19,Fault 19 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0064793,4622.8
+d19_te.dat,d19_te,Fault 19 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0063985,4623.4
+d20.dat,d20,Fault 20 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0063941,4621.9
+d20_te.dat,d20_te,Fault 20 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.0078483,4629.5
+d21.dat,d21,Fault 21 Training,True,"(480, 52)","(480, 52)",True,False,"(480, 52)",0,0,-0.0071564,4627.4
+d21_te.dat,d21_te,Fault 21 Testing,True,"(960, 52)","(960, 52)",True,False,"(960, 52)",0,0,-0.010789,4630.3
