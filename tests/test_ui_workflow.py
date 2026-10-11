@@ -126,3 +126,80 @@ def test_ui_sensitivity_flow(d00_data):
     assert not sens_df.empty
     summary_df = summarize_largest_sensitivities(sens_df)
     assert len(summary_df) == len(RESPONSE_TARGETS)
+
+
+def test_ui_interactive_trust_region_sensitivity(d00_data):
+    """Verify that altering trust region half-width and empirical bounding affects problem formulation."""
+    model = ProcessSurrogateModel(model_type="ridge", alpha=10.0, features=DECISION_FEATURES_8).fit(d00_data)
+    u_base = d00_data[DECISION_FEATURES_8].mean().to_numpy()
+    resp_bounds = {t: (float(d00_data[t].min()), float(d00_data[t].max())) for t in RESPONSE_TARGETS}
+    feat_bounds = {f: (float(d00_data[f].min()), float(d00_data[f].max())) for f in DECISION_FEATURES_8}
+
+    # Narrow trust region (±2%) vs standard (±10%)
+    res_2pct = solve_lp_production_maximization(
+        model, u_base, trust_delta=2.0, response_bounds=resp_bounds, feature_bounds=feat_bounds
+    )
+    res_10pct = solve_lp_production_maximization(
+        model, u_base, trust_delta=10.0, response_bounds=resp_bounds, feature_bounds=feat_bounds
+    )
+    assert res_2pct.success is True
+    assert res_10pct.success is True
+    assert res_10pct.objective_value > res_2pct.objective_value
+
+    # Toggling empirical bounds removes surplus constraints
+    res_nobounds = solve_lp_production_maximization(
+        model, u_base, trust_delta=10.0, response_bounds=None, feature_bounds=feat_bounds
+    )
+    assert res_nobounds.success is True
+    assert len(res_nobounds.binding_constraints) == 0
+
+
+def test_ui_interactive_cost_quota_sensitivity(d00_data):
+    """Verify that varying production quota shifts operating constraints and handles infeasibility gracefully."""
+    model = ProcessSurrogateModel(model_type="ridge", alpha=10.0, features=DECISION_FEATURES_8).fit(d00_data)
+    u_base = d00_data[DECISION_FEATURES_8].mean().to_numpy()
+    resp_bounds = {t: (float(d00_data[t].min()), float(d00_data[t].max())) for t in RESPONSE_TARGETS}
+    feat_bounds = {f: (float(d00_data[f].min()), float(d00_data[f].max())) for f in DECISION_FEATURES_8}
+
+    # Feasible quota targets: XMV_11 adjusts to meet demand
+    res_21 = solve_lp_cost_minimization(model, u_base, target_production=21.0, trust_delta=10.0, response_bounds=resp_bounds, feature_bounds=feat_bounds)
+    res_24 = solve_lp_cost_minimization(model, u_base, target_production=24.0, trust_delta=10.0, response_bounds=resp_bounds, feature_bounds=feat_bounds)
+    assert res_21.success is True
+    assert res_24.success is True
+    assert res_21.predicted_responses["XMEAS_17"] >= 21.0 - 1e-3
+    assert res_24.predicted_responses["XMEAS_17"] >= 24.0 - 1e-3
+    # Cooling valve differs to provide the requested throughput
+    assert res_21.u_optimal["XMV_11"] > res_24.u_optimal["XMV_11"]
+
+    # Infeasible quota target (35.0 m3/hr): solver returns LPResult(success=False) without crashing
+    res_infeasible = solve_lp_cost_minimization(model, u_base, target_production=35.0, trust_delta=10.0, response_bounds=resp_bounds, feature_bounds=feat_bounds)
+    assert res_infeasible.success is False
+    assert "infeasible" in res_infeasible.status_message.lower()
+
+
+def test_ui_interactive_goal_programming_priorities(d00_data):
+    """Verify that re-ordering lexicographic priorities produces distinct trade-off points under competing targets."""
+    model = ProcessSurrogateModel(model_type="linear", features=DECISION_FEATURES_8).fit(d00_data)
+    u_base = d00_data[DECISION_FEATURES_8].mean().to_numpy()
+
+    # Competing ambitious targets that exceed mutual feasibility: Throughput=28.0 m3/hr vs Compressor=310.0 kW
+    goals_p1_prod = [
+        GoalSpec(name="Product Throughput", response_tag="XMEAS_17", target=28.0, direction="max", weight=1.0, priority=1),
+        GoalSpec(name="Compressor Work", response_tag="XMEAS_20", target=310.0, direction="min", weight=1.0, priority=2),
+        GoalSpec(name="Reactor Pressure", response_tag="XMEAS_07", target=2705.4, direction="exact", weight=1.0, priority=3),
+    ]
+    goals_p1_comp = [
+        GoalSpec(name="Product Throughput", response_tag="XMEAS_17", target=28.0, direction="max", weight=1.0, priority=2),
+        GoalSpec(name="Compressor Work", response_tag="XMEAS_20", target=310.0, direction="min", weight=1.0, priority=1),
+        GoalSpec(name="Reactor Pressure", response_tag="XMEAS_07", target=2705.4, direction="exact", weight=1.0, priority=3),
+    ]
+
+    res_prod_first = solve_preemptive_gp(model, goals_p1_prod, u_base, trust_delta=10.0)
+    res_comp_first = solve_preemptive_gp(model, goals_p1_comp, u_base, trust_delta=10.0)
+
+    assert res_prod_first.success is True
+    assert res_comp_first.success is True
+    # Prioritizing product achieves higher throughput at expense of compressor work
+    assert res_prod_first.predicted_responses["XMEAS_17"] > res_comp_first.predicted_responses["XMEAS_17"]
+    assert res_comp_first.predicted_responses["XMEAS_20"] <= res_prod_first.predicted_responses["XMEAS_20"]
+

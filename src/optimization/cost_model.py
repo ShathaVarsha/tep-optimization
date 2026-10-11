@@ -37,6 +37,7 @@ PURGE_PRICES = {
     "H": PRICE_PURGE_H,
 }
 
+PRICE_PURGE_DEFAULT = 5.80   # $/kmol default weighted average purge gas value
 PRICE_STEAM = 0.00318        # $/kg of stripper reboiler steam
 PRICE_ELECTRICITY = 0.0536   # $/kWh of compressor electrical power
 

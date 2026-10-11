@@ -125,6 +125,7 @@ class ProcessSurrogateModel:
         self.features = list(features) if features is not None else list(DECISION_FEATURES)
         self.models: Dict[str, Union[Pipeline, LinearRegression, Ridge]] = {}
         self.metrics: Dict[str, Dict[str, float]] = {}
+        self.fold_metrics: Dict[str, List[Dict[str, float]]] = {}
         self.extrapolation_detector = ExtrapolationDetector()
         self.is_fitted = False
 
@@ -151,12 +152,14 @@ class ProcessSurrogateModel:
         self.extrapolation_detector.fit(X)
 
         tscv = TimeSeriesSplit(n_splits=cv_splits)
+        self.fold_metrics = {}
 
         for target in RESPONSE_TARGETS:
             y = df[target].to_numpy(dtype=float)
             cv_mae, cv_rmse, cv_r2, cv_rel_err = [], [], [], []
+            fold_details = []
 
-            for train_idx, test_idx in tscv.split(X):
+            for fold_i, (train_idx, test_idx) in enumerate(tscv.split(X)):
                 estimator = self._build_estimator()
                 estimator.fit(X[train_idx], y[train_idx])
                 y_pred = estimator.predict(X[test_idx])
@@ -170,6 +173,17 @@ class ProcessSurrogateModel:
                 cv_rmse.append(rmse)
                 cv_r2.append(r2)
                 cv_rel_err.append(rel_err)
+                fold_details.append({
+                    "fold": fold_i + 1,
+                    "train_size": len(train_idx),
+                    "test_size": len(test_idx),
+                    "mae": mae,
+                    "rmse": rmse,
+                    "r2": r2,
+                    "rel_err_pct": rel_err,
+                })
+
+            self.fold_metrics[target] = fold_details
 
             # Fit final model on all baseline data
             final_estimator = self._build_estimator()
@@ -195,6 +209,51 @@ class ProcessSurrogateModel:
 
         self.is_fitted = True
         return self
+
+    def evaluate_chronological_holdout(
+        self, df: pd.DataFrame, train_ratio: float = 0.8
+    ) -> Dict[str, Dict[str, float]]:
+        """Evaluate chronological holdout performance (e.g. 80% train / 20% test).
+        
+        Preserves natural process time sequence without future data leakage.
+        """
+        n_samples = len(df)
+        n_train = int(n_samples * train_ratio)
+        
+        train_df = df.iloc[:n_train]
+        test_df = df.iloc[n_train:]
+        
+        X_train = train_df[self.features].to_numpy(dtype=float)
+        X_test = test_df[self.features].to_numpy(dtype=float)
+        
+        holdout_results: Dict[str, Dict[str, float]] = {}
+        for target in RESPONSE_TARGETS:
+            y_train = train_df[target].to_numpy(dtype=float)
+            y_test = test_df[target].to_numpy(dtype=float)
+            
+            est = self._build_estimator()
+            est.fit(X_train, y_train)
+            
+            y_pred_train = est.predict(X_train)
+            y_pred_test = est.predict(X_test)
+            
+            train_r2 = float(r2_score(y_train, y_pred_train))
+            test_r2 = float(r2_score(y_test, y_pred_test))
+            test_mae = float(mean_absolute_error(y_test, y_pred_test))
+            test_rmse = float(np.sqrt(mean_squared_error(y_test, y_pred_test)))
+            test_rel_err = float((test_mae / np.mean(y_test)) * 100.0) if np.mean(y_test) != 0 else 0.0
+            
+            holdout_results[target] = {
+                "n_train": n_train,
+                "n_test": len(test_df),
+                "train_r2": train_r2,
+                "test_r2": test_r2,
+                "test_mae": test_mae,
+                "test_rmse": test_rmse,
+                "test_rel_error_pct": test_rel_err,
+            }
+            
+        return holdout_results
 
     def predict(self, u: Union[np.ndarray, List[float], pd.Series]) -> Dict[str, float]:
         """Predict key process responses given decision vector u."""

@@ -252,14 +252,15 @@ These finite-difference sensitivities are localized numerical approximations of 
 ## 8. User Interface & Software Architecture
 
 ### 8.1 Streamlit Interactive Dashboard (`streamlit_app.py`)
-A modern, dark-mode full-stack application was built using Streamlit and Plotly, providing 7 functional views:
-1. **Dataset & Process Catalog:** 44-file integrity audit, 52-variable searchable dictionary, descriptive statistics, and correlation heatmaps.
-2. **Baseline & Stationarity:** Augmented Dickey-Fuller stationarity tests, rolling drift metrics, and Downs & Vogel baseline cost/energy breakdowns.
-3. **Surrogate Modeling:** Interactive selector for Ridge, Linear, and Polynomial models; 7-var vs 8-var mode toggle; TimeSeriesSplit cross-validation tables ($R^2$, MAE, RMSE); live response curve overlays.
-4. **Linear Programming Engine:** Multi-objective solver panel (Production Max, Cost Min, Energy Min) with sliders for trust region delta ($\pm \delta\%$), pressure limits, and compressor power ratings; live HiGHS Dual Simplex solver execution; side-by-side comparison tables, bar charts, and CSV exports.
-5. **Goal Programming Studio:** Interactive weighted-sum and preemptive lexicographic solver with user-defined target values and priority rankings.
-6. **Sensitivity Explorer:** Interactive what-if perturbation calculator with adjustable step sizes and dominant sensitivity bar charts.
-7. **Reports & Audit:** In-app markdown viewer for project audit and validation documentation.
+A modern, dark-mode full-stack application was built using Streamlit and Plotly, providing 8 functional interactive views:
+1. **Executive Overview & Process Flowsheet:** High-level executive KPI cards, 5-unit TEP flowsheet summary table, and complete literature traceability matrix.
+2. **Benchmark Dataset & Variable Catalog Explorer:** 44-file integrity audit, 52-variable searchable dictionary, time series trajectories, empirical distributions, and cross-variable correlation heatmaps.
+3. **Baseline Stationarity & Equilibrium Analysis:** Augmented Dickey-Fuller stationarity tests ($p < 0.05$), rolling drift metrics ($< 5.0\%$), and Downs & Vogel baseline cost/energy breakdowns.
+4. **Machine Learning Surrogate Modeling & The XMV_11 Breakthrough:** Interactive selector for Ridge, Linear, and Polynomial models; 7-var vs 8-var mode toggle; TimeSeriesSplit cross-validation tables ($R^2$, MAE, RMSE); live parity scatter plots and extrapolation boundary indicators.
+5. **Linear Programming: Production Maximization:** Interactive solver panel with sliders for trust region delta ($\pm \delta\%$), pressure limits, and compressor power ratings; live HiGHS Dual Simplex solver execution; side-by-side comparison tables, bar charts, and CSV exports.
+6. **Linear Programming: Operating Cost & Energy Minimization:** Solves cost minimization, total equivalent power minimization, or compressor electrical power minimization subject to target production quota.
+7. **Multi-Objective Goal Programming:** Interactive weighted-sum and preemptive lexicographic solver with user-defined target values and priority rankings.
+8. **Sensitivity Analysis, Dual Shadow Prices & Report Exporter:** Dual Simplex LP shadow prices, local finite-difference what-if perturbation calculator with dominant sensitivity bar charts, master scenario comparison table, and downloadable publication artifacts.
 
 ---
 

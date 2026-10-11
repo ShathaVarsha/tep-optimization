@@ -70,6 +70,8 @@ def test_baseline_energy_evaluation_on_d00():
 
     assert "compressor_power_kw" in energy_breakdown
     assert "steam_thermal_power_kw" in energy_breakdown
+    assert "steam_thermal_duty_kw" in energy_breakdown
+    assert energy_breakdown["steam_thermal_duty_kw"] == energy_breakdown["steam_thermal_power_kw"]
     assert "total_energy_power_kw" in energy_breakdown
 
     # Compressor power should match nominal setpoint within +- 2%

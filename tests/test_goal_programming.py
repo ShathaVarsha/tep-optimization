@@ -24,7 +24,9 @@ from src.optimization.goal_programming import (
     solve_preemptive_gp,
     format_gp_report,
     build_default_tep_goals,
+    build_operational_safety_goals,
 )
+
 
 
 # ---------------------------------------------------------------------------
@@ -328,3 +330,38 @@ class TestGPReporting:
         report = format_gp_report(result)
         for feat in DECISION_FEATURES:
             assert feat in report, f"{feat} missing from GP report"
+
+
+# ---------------------------------------------------------------------------
+# 6. Operational Safety Goals & Dimensional Integrity
+# ---------------------------------------------------------------------------
+
+class TestOperationalSafetyAndDimensions:
+    def test_operational_safety_goals_structure(self):
+        goals = build_operational_safety_goals()
+        assert len(goals) == 3
+        tags = [g.response_tag for g in goals]
+        assert tags == ["XMEAS_17", "XMEAS_20", "XMEAS_07"]
+        assert goals[0].direction == "max"
+        assert goals[1].direction == "min"
+        assert goals[2].direction == "exact"
+
+    def test_operational_safety_solves_successfully(self, gp_setup):
+        model, u_base = gp_setup
+        goals = build_operational_safety_goals()
+        r_ws = solve_weighted_sum_gp(model, goals, u_base)
+        r_pre = solve_preemptive_gp(model, goals, u_base)
+        assert r_ws.success is True
+        assert r_pre.success is True
+        assert r_ws.extrapolation_status is not None
+        assert r_pre.extrapolation_status is not None
+
+    def test_dimension_mismatch_raises_value_error(self, gp_setup, default_goals):
+        model, u_base = gp_setup
+        wrong_u_base = np.zeros(len(u_base) + 1)
+        with pytest.raises(ValueError, match="does not match surrogate features"):
+            solve_weighted_sum_gp(model, default_goals, wrong_u_base)
+
+        with pytest.raises(ValueError, match="does not match surrogate features"):
+            solve_preemptive_gp(model, default_goals, wrong_u_base)
+

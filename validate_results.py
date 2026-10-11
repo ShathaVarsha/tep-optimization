@@ -16,7 +16,13 @@ from src.optimization.lp_optimizer import (
 )
 from src.optimization.cost_model import evaluate_operating_cost_breakdown
 from src.optimization.energy_model import evaluate_energy_breakdown
-from src.optimization.goal_programming import GoalSpec, solve_weighted_sum_gp, solve_preemptive_gp
+from src.optimization.goal_programming import (
+    GoalSpec,
+    solve_weighted_sum_gp,
+    solve_preemptive_gp,
+    build_default_tep_goals,
+    build_operational_safety_goals,
+)
 
 OK  = "[PASS]"
 ERR = "[FAIL]"
@@ -61,10 +67,29 @@ check("Compressor power",       energy["compressor_power_kw"],         338.0, 34
 check("Steam thermal power",    energy["steam_thermal_power_kw"],      142.0, 147.0, "kW")
 check("Total energy footprint", energy["total_energy_power_kw"],       483.0, 490.0, "kW")
 
+# Independent formula consistency checks
+cost_sum = cost["purge_cost_usd_hr"] + cost["compressor_cost_usd_hr"] + cost["steam_cost_usd_hr"]
+cost_sum_err = abs(cost["total_operating_cost_usd_hr"] - cost_sum)
+ok_cost_sum = cost_sum_err < 1e-4
+print("  %s Cost summation check (Purge + Elec + Steam == Total): err=%.2e" % (OK if ok_cost_sum else ERR, cost_sum_err))
+results.append(ok_cost_sum)
+
+energy_sum = energy["compressor_power_kw"] + energy["steam_thermal_power_kw"]
+energy_sum_err = abs(energy["total_energy_power_kw"] - energy_sum)
+ok_energy_sum = energy_sum_err < 1e-4
+print("  %s Energy summation check (Elec kW + Thermal kW == Total): err=%.2e" % (OK if ok_energy_sum else ERR, energy_sum_err))
+results.append(ok_energy_sum)
+
+steam_formula_expected = float(df["XMEAS_19"].mean()) * 2257.0 / 3600.0
+steam_err = abs(energy["steam_thermal_power_kw"] - steam_formula_expected)
+ok_steam_form = steam_err < 1e-4
+print("  %s Steam thermal conversion check (kg/hr * 2257 / 3600): err=%.2e" % (OK if ok_steam_form else ERR, steam_err))
+results.append(ok_steam_form)
+
 # ------------------------------------------------------------------
-# 3. SURROGATE MODELS  (using sm.metrics dict after fit())
+# 3. SURROGATE MODELS  (using sm.metrics and holdout after fit())
 # ------------------------------------------------------------------
-print("\n[3/5] 8-Variable Ridge Surrogate Models (TimeSeriesSplit CV k=5)")
+print("\n[3/5] 8-Variable Ridge Surrogate Models (TimeSeriesSplit CV k=5 & Holdout 80/20)")
 sm = ProcessSurrogateModel(model_type='ridge', alpha=10.0, features=DECISION_FEATURES_8)
 sm.fit(df, cv_splits=5)
 mdict = sm.metrics   # {response_tag: {cv_r2, cv_mae, ...}}
@@ -80,6 +105,20 @@ for tag, label, min_r2 in [
     print("  %s %-38s CV R2: %.4f  [min: %.2f]" % (OK if ok else ERR, label, r2, min_r2))
     results.append(ok)
 
+# Fold-level detail preservation check
+ok_folds = len(sm.fold_metrics.get("XMEAS_17", [])) == 5
+print("  %s Fold-level CV metrics recorded (k=5 folds): %d folds" % (
+    OK if ok_folds else ERR, len(sm.fold_metrics.get("XMEAS_17", []))))
+results.append(ok_folds)
+
+# Chronological holdout evaluation
+holdout_res = sm.evaluate_chronological_holdout(df, train_ratio=0.8)
+prod_holdout_r2 = holdout_res["XMEAS_17"]["test_r2"]
+ok_holdout = prod_holdout_r2 >= 0.99
+print("  %s Chronological Holdout (80/20) Product Flow Test R2: %.4f  [min: 0.99]" % (
+    OK if ok_holdout else ERR, prod_holdout_r2))
+results.append(ok_holdout)
+
 # ------------------------------------------------------------------
 # 4. LP OPTIMIZATION  (replicate run_optimization.py exactly)
 # ------------------------------------------------------------------
@@ -88,6 +127,13 @@ u_base      = df[DECISION_FEATURES_8].mean().to_numpy()
 resp_bounds = {t: (float(df[t].min()), float(df[t].max())) for t in RESPONSE_TARGETS}
 feat_bounds = {f: (float(df[f].min()), float(df[f].max())) for f in DECISION_FEATURES_8}
 target_prod = float(df["XMEAS_17"].mean())
+
+# Statistical domain verification of baseline point
+u_base_in_domain, u_base_diag = sm.check_extrapolation(u_base)
+print("  %s Baseline Operating Point domain check: in_domain=%s (D_M^2=%.2f <= chi2=%.2f)" % (
+    OK if u_base_in_domain else ERR, u_base_in_domain,
+    u_base_diag["mahalanobis_dist_sq"], u_base_diag["critical_threshold"]))
+results.append(u_base_in_domain)
 
 r1 = solve_lp_production_maximization(
     surrogate_model=sm, u_baseline=u_base,
@@ -138,28 +184,48 @@ if r1.predicted_responses:
     print("  %s Safety: Compressor Power  %.1f kW   (<= 355 kW rating)" % (OK if ok_c else ERR, comp))
     results += [ok_p, ok_c]
 
+# Extrapolation boundary reporting on LP optimal points
+if r1.extrapolation_status is not None:
+    d2 = r1.extrapolation_status["mahalanobis_dist_sq"]
+    crit = r1.extrapolation_status["critical_threshold"]
+    print("  [DIAG] Prod Max Extrapolation Check: D_M^2=%.1f (crit=%.1f) -> trust boundary pushes beyond unperturbed baseline variance" % (d2, crit))
+
 # ------------------------------------------------------------------
-# 5. GOAL PROGRAMMING
+# 5. GOAL PROGRAMMING (Dual Canonical Scenarios)
 # ------------------------------------------------------------------
 print("\n[5/5] Goal Programming (Weighted-Sum & Preemptive Lexicographic)")
-goals = [
-    GoalSpec(name="Production Quota", response_tag="XMEAS_17",
-             target=24.0, direction="max", weight=2.0, priority=1),
-    GoalSpec(name="Cost Reduction",   response_tag="XMEAS_20",
-             target=338.0, direction="min", weight=1.0, priority=2),
-    GoalSpec(name="Pressure Target",  response_tag="XMEAS_07",
-             target=2705.0, direction="exact", weight=0.5, priority=3),
-]
-ws_r  = solve_weighted_sum_gp(sm, goals, u_base)
-pre_r = solve_preemptive_gp(sm, goals, u_base)
-ok_ws  = ws_r.success
-ok_pre = pre_r.success
-dev_ws = ws_r.total_weighted_deviation if ok_ws else float('nan')
-print("  %s Weighted-Sum GP: success=%-5s | Weighted deviation: %.4f" % (
-    OK if ok_ws else ERR, str(ok_ws), dev_ws))
-print("  %s Preemptive GP:   success=%-5s | Priority levels: %d" % (
-    OK if ok_pre else ERR, str(ok_pre), len(pre_r.priority_sequence)))
-results += [ok_ws, ok_pre]
+
+# Scenario A: Operational Stability & Safety (Production, Compressor Power, Reactor Pressure)
+goals_safety = build_operational_safety_goals()
+ws_safety  = solve_weighted_sum_gp(sm, goals_safety, u_base)
+pre_safety = solve_preemptive_gp(sm, goals_safety, u_base)
+ok_ws_s  = ws_safety.success
+ok_pre_s = pre_safety.success
+print("  %s Scenario A (Operational Safety): Weighted-Sum success=%s | deviation: %.4f" % (
+    OK if ok_ws_s else ERR, str(ok_ws_s), ws_safety.total_weighted_deviation))
+print("  %s Scenario A (Operational Safety): Preemptive success=%s   | levels: %d" % (
+    OK if ok_pre_s else ERR, str(ok_pre_s), len(pre_safety.priority_sequence)))
+results += [ok_ws_s, ok_pre_s]
+
+# Scenario B: Economic Conservation (Production, Compressor Power, Purge Rate)
+goals_econ = build_default_tep_goals()
+ws_econ  = solve_weighted_sum_gp(sm, goals_econ, u_base)
+pre_econ = solve_preemptive_gp(sm, goals_econ, u_base)
+ok_ws_e  = ws_econ.success
+ok_pre_e = pre_econ.success
+print("  %s Scenario B (Economic Conservation): Weighted-Sum success=%s | deviation: %.4f" % (
+    OK if ok_ws_e else ERR, str(ok_ws_e), ws_econ.total_weighted_deviation))
+print("  %s Scenario B (Economic Conservation): Preemptive success=%s   | levels: %d" % (
+    OK if ok_pre_e else ERR, str(ok_pre_e), len(pre_econ.priority_sequence)))
+results += [ok_ws_e, ok_pre_e]
+
+# Lexicographic priority preservation check: verify P1 is not degraded
+z1_pre = pre_safety.priority_sequence[0]
+ws_p1_only = solve_weighted_sum_gp(sm, [goals_safety[0]], u_base)
+ok_p1_preservation = z1_pre <= ws_p1_only.total_weighted_deviation + 1e-4
+print("  %s Preemptive Lexicographic P1 Priority Preservation: z1=%.6f <= z1_standalone=%.6f" % (
+    OK if ok_p1_preservation else ERR, z1_pre, ws_p1_only.total_weighted_deviation))
+results.append(ok_p1_preservation)
 
 # ------------------------------------------------------------------
 # FINAL SUMMARY
@@ -171,3 +237,4 @@ pct     = 100.0 * passed / total if total else 0
 verdict = "ALL CHECKS PASSED" if passed == total else ("ISSUES: %d check(s) FAILED" % (total - passed))
 print("  RESULT: %d/%d checks passed (%.0f%%)  --  %s" % (passed, total, pct, verdict))
 print(sep)
+

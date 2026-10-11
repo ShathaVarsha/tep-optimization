@@ -60,6 +60,10 @@ def detect_outliers_iqr(df: pd.DataFrame, factor: float = 1.5) -> pd.DataFrame:
     })
 
 
+detect_iqr_outliers = detect_outliers_iqr
+
+
+
 def get_variable_profile(df: pd.DataFrame, var_name: str) -> Dict[str, float]:
     """Return descriptive metric profile for a specific variable."""
     if var_name not in df.columns:

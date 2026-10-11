@@ -84,6 +84,8 @@ class LPResult:
     reduced_costs: Dict[str, float]
     binding_constraints: List[str]
     iterations: int
+    extrapolation_status: Optional[Dict[str, Union[float, bool]]] = None
+
 
 
 def _resolve_features(
@@ -142,14 +144,15 @@ def _append_response_bounds(
 
 
 def solve_lp_production_maximization(
-    surrogate_model: ProcessSurrogateModel,
-    u_baseline: np.ndarray,
+    surrogate_model: Optional[ProcessSurrogateModel] = None,
+    u_baseline: np.ndarray = None,
     max_pressure: float = 2800.0,
     max_compressor_power: float = 355.0,
     trust_delta: float = 10.0,
     response_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
     feature_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
     features: Optional[List[str]] = None,
+    surrogate: Optional[ProcessSurrogateModel] = None,
 ) -> LPResult:
     """Solve LP Problem 1: Maximize finished product throughput within energy & safety limits.
 
@@ -161,11 +164,19 @@ def solve_lp_production_maximization(
             u_base - delta <= u <= u_base + delta
             0 <= u <= 100
     """
+    if surrogate_model is None and surrogate is not None:
+        surrogate_model = surrogate
+    if surrogate_model is None:
+        raise ValueError("A fitted surrogate_model must be provided.")
     if not surrogate_model.is_fitted:
         raise RuntimeError("Surrogate model must be fitted prior to LP formulation.")
 
     feat_names = _resolve_features(surrogate_model, features)
     u_base_arr = np.asarray(u_baseline, dtype=float).ravel()
+    if len(u_base_arr) != len(feat_names):
+        raise ValueError(
+            f"Length of u_baseline ({len(u_base_arr)}) does not match number of features ({len(feat_names)}: {feat_names})."
+        )
 
     # Objective: Maximize Product Flow (minimize -c^T u)
     prod_est = surrogate_model.models["XMEAS_17"]
@@ -196,7 +207,25 @@ def solve_lp_production_maximization(
     res = linprog(c=c, A_ub=A_ub, b_ub=b_ub, bounds=bounds, method="highs-ds")
 
     if not res.success:
-        raise RuntimeError(f"Dual Simplex LP solver failed to converge: {res.message}")
+        base_prod = float(prod_est.predict(u_base_arr.reshape(1, -1))[0])
+        preds = surrogate_model.predict(u_base_arr)
+        return LPResult(
+            success=False,
+            status_message=str(res.message),
+            problem_type="LP Formulation 1",
+            objective_name="Product Flow (m3/hr)",
+            objective_value=base_prod,
+            baseline_objective_value=base_prod,
+            improvement_pct=0.0,
+            u_optimal={feat: float(u_base_arr[i]) for i, feat in enumerate(feat_names)},
+            u_baseline={feat: float(u_base_arr[i]) for i, feat in enumerate(feat_names)},
+            predicted_responses=preds,
+            shadow_prices={name: 0.0 for name in constraint_names},
+            slack_values={},
+            reduced_costs={feat: 0.0 for feat in feat_names},
+            binding_constraints=[],
+            iterations=int(getattr(res, "nit", 0)),
+        )
 
     u_opt = res.x
     opt_prod = float(-res.fun + intercept_prod)
@@ -233,6 +262,10 @@ def solve_lp_production_maximization(
         for i, feat in enumerate(feat_names)
     }
 
+    ext_status = None
+    if hasattr(surrogate_model, "check_extrapolation"):
+        _, ext_status = surrogate_model.check_extrapolation(u_opt)
+
     return LPResult(
         success=bool(res.success),
         status_message=str(res.message),
@@ -249,12 +282,13 @@ def solve_lp_production_maximization(
         reduced_costs=reduced_costs,
         binding_constraints=binding,
         iterations=int(res.nit),
+        extrapolation_status=ext_status,
     )
 
 
 def solve_lp_cost_minimization(
-    surrogate_model: ProcessSurrogateModel,
-    u_baseline: np.ndarray,
+    surrogate_model: Optional[ProcessSurrogateModel] = None,
+    u_baseline: np.ndarray = None,
     target_production: float = 22.89,
     max_pressure: float = 2800.0,
     max_compressor_power: float = 355.0,
@@ -263,6 +297,7 @@ def solve_lp_cost_minimization(
     response_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
     feature_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
     features: Optional[List[str]] = None,
+    surrogate: Optional[ProcessSurrogateModel] = None,
 ) -> LPResult:
     """Solve LP Problem 2: Minimize total operating cost subject to meeting target production quota.
 
@@ -274,11 +309,19 @@ def solve_lp_cost_minimization(
             [Optional: Response Bounds]
             u_base - delta <= u <= u_base + delta
     """
+    if surrogate_model is None and surrogate is not None:
+        surrogate_model = surrogate
+    if surrogate_model is None:
+        raise ValueError("A fitted surrogate_model must be provided.")
     if not surrogate_model.is_fitted:
         raise RuntimeError("Surrogate model must be fitted prior to LP formulation.")
 
     feat_names = _resolve_features(surrogate_model, features)
     u_base_arr = np.asarray(u_baseline, dtype=float).ravel()
+    if len(u_base_arr) != len(feat_names):
+        raise ValueError(
+            f"Length of u_baseline ({len(u_base_arr)}) does not match number of features ({len(feat_names)}: {feat_names})."
+        )
 
     purge_est = surrogate_model.models["XMEAS_10"]
     steam_est = surrogate_model.models["XMEAS_19"]
@@ -334,7 +377,25 @@ def solve_lp_cost_minimization(
     res = linprog(c=c_cost, A_ub=A_ub, b_ub=b_ub, bounds=bounds, method="highs-ds")
 
     if not res.success:
-        raise RuntimeError(f"Dual Simplex LP solver failed to converge: {res.message}")
+        base_cost = float(np.dot(c_cost, u_base_arr) + cost_intercept)
+        preds = surrogate_model.predict(u_base_arr)
+        return LPResult(
+            success=False,
+            status_message=str(res.message),
+            problem_type="LP Formulation 2",
+            objective_name="Operating Cost ($/hr)",
+            objective_value=base_cost,
+            baseline_objective_value=base_cost,
+            improvement_pct=0.0,
+            u_optimal={feat: float(u_base_arr[i]) for i, feat in enumerate(feat_names)},
+            u_baseline={feat: float(u_base_arr[i]) for i, feat in enumerate(feat_names)},
+            predicted_responses=preds,
+            shadow_prices={name: 0.0 for name in constraint_names},
+            slack_values={},
+            reduced_costs={feat: 0.0 for feat in feat_names},
+            binding_constraints=[],
+            iterations=int(getattr(res, "nit", 0)),
+        )
 
     u_opt = res.x
     opt_cost = float(res.fun + cost_intercept)
@@ -371,6 +432,10 @@ def solve_lp_cost_minimization(
         for i, feat in enumerate(feat_names)
     }
 
+    ext_status = None
+    if hasattr(surrogate_model, "check_extrapolation"):
+        _, ext_status = surrogate_model.check_extrapolation(u_opt)
+
     return LPResult(
         success=bool(res.success),
         status_message=str(res.message),
@@ -387,12 +452,13 @@ def solve_lp_cost_minimization(
         reduced_costs=reduced_costs,
         binding_constraints=binding,
         iterations=int(res.nit),
+        extrapolation_status=ext_status,
     )
 
 
 def solve_lp_energy_minimization(
-    surrogate_model: ProcessSurrogateModel,
-    u_baseline: np.ndarray,
+    surrogate_model: Optional[ProcessSurrogateModel] = None,
+    u_baseline: np.ndarray = None,
     target_production: float = 22.89,
     max_pressure: float = 2800.0,
     max_compressor_power: float = 355.0,
@@ -401,6 +467,7 @@ def solve_lp_energy_minimization(
     response_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
     feature_bounds: Optional[Dict[str, Tuple[float, float]]] = None,
     features: Optional[List[str]] = None,
+    surrogate: Optional[ProcessSurrogateModel] = None,
 ) -> LPResult:
     """Solve LP Problem 3: Minimize energy consumption subject to meeting production quota.
 
@@ -416,11 +483,19 @@ def solve_lp_energy_minimization(
             [Optional: Response Bounds]
             u_base - delta <= u <= u_base + delta
     """
+    if surrogate_model is None and surrogate is not None:
+        surrogate_model = surrogate
+    if surrogate_model is None:
+        raise ValueError("A fitted surrogate_model must be provided.")
     if not surrogate_model.is_fitted:
         raise RuntimeError("Surrogate model must be fitted prior to LP formulation.")
 
     feat_names = _resolve_features(surrogate_model, features)
     u_base_arr = np.asarray(u_baseline, dtype=float).ravel()
+    if len(u_base_arr) != len(feat_names):
+        raise ValueError(
+            f"Length of u_baseline ({len(u_base_arr)}) does not match number of features ({len(feat_names)}: {feat_names})."
+        )
 
     comp_est = surrogate_model.models["XMEAS_20"]
     comp_coef, comp_intercept = _get_linear_coefficients(comp_est)
@@ -469,7 +544,25 @@ def solve_lp_energy_minimization(
     res = linprog(c=c_energy, A_ub=A_ub, b_ub=b_ub, bounds=bounds, method="highs-ds")
 
     if not res.success:
-        raise RuntimeError(f"Dual Simplex LP solver failed to converge: {res.message}")
+        base_energy = float(np.dot(c_energy, u_base_arr) + energy_intercept)
+        preds = surrogate_model.predict(u_base_arr)
+        return LPResult(
+            success=False,
+            status_message=str(res.message),
+            problem_type="LP Formulation 3",
+            objective_name=obj_name,
+            objective_value=base_energy,
+            baseline_objective_value=base_energy,
+            improvement_pct=0.0,
+            u_optimal={feat: float(u_base_arr[i]) for i, feat in enumerate(feat_names)},
+            u_baseline={feat: float(u_base_arr[i]) for i, feat in enumerate(feat_names)},
+            predicted_responses=preds,
+            shadow_prices={name: 0.0 for name in constraint_names},
+            slack_values={},
+            reduced_costs={feat: 0.0 for feat in feat_names},
+            binding_constraints=[],
+            iterations=int(getattr(res, "nit", 0)),
+        )
 
     u_opt = res.x
     opt_energy = float(res.fun + energy_intercept)
@@ -506,6 +599,10 @@ def solve_lp_energy_minimization(
         for i, feat in enumerate(feat_names)
     }
 
+    ext_status = None
+    if hasattr(surrogate_model, "check_extrapolation"):
+        _, ext_status = surrogate_model.check_extrapolation(u_opt)
+
     return LPResult(
         success=bool(res.success),
         status_message=str(res.message),
@@ -522,4 +619,6 @@ def solve_lp_energy_minimization(
         reduced_costs=reduced_costs,
         binding_constraints=binding,
         iterations=int(res.nit),
+        extrapolation_status=ext_status,
     )
+

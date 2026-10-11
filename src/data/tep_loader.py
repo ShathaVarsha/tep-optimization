@@ -198,3 +198,11 @@ def audit_all_datasets(
     ]
 
     return pd.DataFrame(audit_records)
+
+
+def get_available_datasets(
+    data_dir: Optional[Union[str, Path]] = None,
+) -> List[str]:
+    """Return a sorted list of all available dataset IDs without the .dat extension."""
+    base_dir = Path(data_dir) if data_dir else get_default_data_dir()
+    return sorted([f.stem for f in base_dir.glob("d*.dat")])

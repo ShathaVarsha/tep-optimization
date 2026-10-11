@@ -61,6 +61,8 @@ class GoalSpec:
     priority: int = 1
 
     def __post_init__(self):
+        if self.direction == "target":
+            object.__setattr__(self, "direction", "exact")
         if self.direction not in ("min", "max", "exact"):
             raise ValueError(
                 f"GoalSpec '{self.name}': direction must be 'min', 'max', or 'exact'."
@@ -89,6 +91,11 @@ class GPResult:
     n_decision_vars: int
     n_deviation_vars: int
     iterations: int
+    extrapolation_status: Optional[Dict[str, Union[float, bool]]] = None
+
+
+
+GoalProgrammingResult = GPResult
 
 
 # ---------------------------------------------------------------------------
@@ -320,24 +327,35 @@ def solve_weighted_sum_gp(
         raise RuntimeError("Surrogate must be fitted before calling GP solver.")
 
     n_goals = len(goals)
-    n_u = len(surrogate.features) if hasattr(surrogate, "features") else len(DECISION_FEATURES)
+    features = surrogate.features if hasattr(surrogate, "features") and surrogate.features else DECISION_FEATURES
+    n_u = len(features)
     n_dev = 2 * n_goals
     n_aug = n_u + n_dev
+
+    u_base_arr = np.asarray(u_baseline, dtype=float).ravel()
+    if len(u_base_arr) != n_u:
+        raise ValueError(
+            f"Length of u_baseline ({len(u_base_arr)}) does not match surrogate features ({n_u}: {features})."
+        )
 
     c = _build_objective_vector(goals, n_u, n_goals)
     A_eq, b_eq = _build_goal_equality_rows(goals, surrogate, n_u, n_goals)
     A_ub, b_ub = _build_safety_constraints(surrogate, max_pressure, max_compressor_power, n_u, n_dev)
-    bounds = _build_trust_bounds(u_baseline, trust_delta, n_dev)
+    bounds = _build_trust_bounds(u_base_arr, trust_delta, n_dev)
 
     res = linprog(c=c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method="highs-ds")
 
+    ext_status = None
     if res.success:
         u_optimal, preds, achievement, total_dev = _extract_gp_solution(
             res.x, goals, surrogate, n_u, n_goals
         )
+        if hasattr(surrogate, "check_extrapolation"):
+            u_opt_arr = np.array([u_optimal[feat] for feat in features])
+            _, ext_status = surrogate.check_extrapolation(u_opt_arr)
     else:
-        u_optimal = {feat: float(u_baseline[i]) for i, feat in enumerate(DECISION_FEATURES)}
-        preds = surrogate.predict(u_baseline)
+        u_optimal = {feat: float(u_base_arr[i]) for i, feat in enumerate(features)}
+        preds = surrogate.predict(u_base_arr)
         achievement = []
         total_dev = float("inf")
 
@@ -347,7 +365,7 @@ def solve_weighted_sum_gp(
         status_message=str(res.message),
         goals=goals,
         u_optimal=u_optimal,
-        u_baseline={feat: float(u_baseline[i]) for i, feat in enumerate(DECISION_FEATURES)},
+        u_baseline={feat: float(u_base_arr[i]) for i, feat in enumerate(features)},
         predicted_responses=preds,
         goal_achievement=achievement,
         total_weighted_deviation=total_dev,
@@ -355,6 +373,7 @@ def solve_weighted_sum_gp(
         n_decision_vars=n_u,
         n_deviation_vars=n_dev,
         iterations=int(res.nit),
+        extrapolation_status=ext_status,
     )
 
 
@@ -395,8 +414,15 @@ def solve_preemptive_gp(
         raise RuntimeError("Surrogate must be fitted before calling GP solver.")
 
     n_goals = len(goals)
-    n_u = len(surrogate.features) if hasattr(surrogate, "features") else len(DECISION_FEATURES)
+    features = surrogate.features if hasattr(surrogate, "features") and surrogate.features else DECISION_FEATURES
+    n_u = len(features)
     n_dev = 2 * n_goals
+
+    u_base_arr = np.asarray(u_baseline, dtype=float).ravel()
+    if len(u_base_arr) != n_u:
+        raise ValueError(
+            f"Length of u_baseline ({len(u_base_arr)}) does not match surrogate features ({n_u}: {features})."
+        )
 
     sorted_priorities = sorted(set(g.priority for g in goals))
     priority_groups: Dict[int, List[int]] = {
@@ -408,7 +434,7 @@ def solve_preemptive_gp(
         surrogate, max_pressure, max_compressor_power, n_u, n_dev
     )
     A_eq, b_eq = _build_goal_equality_rows(goals, surrogate, n_u, n_goals)
-    base_bounds = _build_trust_bounds(u_baseline, trust_delta, n_dev)
+    base_bounds = _build_trust_bounds(u_base_arr, trust_delta, n_dev)
 
     extra_ineq_rows: List[np.ndarray] = []
     extra_ineq_rhs: List[float] = []
@@ -448,13 +474,17 @@ def solve_preemptive_gp(
         extra_ineq_rows.append(c.reshape(1, -1))
         extra_ineq_rhs.append(z_star + 1e-6)
 
+    ext_status = None
     if all_success and last_x is not None:
         u_optimal, preds, achievement, total_dev = _extract_gp_solution(
             last_x, goals, surrogate, n_u, n_goals
         )
+        if hasattr(surrogate, "check_extrapolation"):
+            u_opt_arr = np.array([u_optimal[feat] for feat in features])
+            _, ext_status = surrogate.check_extrapolation(u_opt_arr)
     else:
-        u_optimal = {feat: float(u_baseline[i]) for i, feat in enumerate(DECISION_FEATURES)}
-        preds = surrogate.predict(u_baseline)
+        u_optimal = {feat: float(u_base_arr[i]) for i, feat in enumerate(features)}
+        preds = surrogate.predict(u_base_arr)
         achievement = []
         total_dev = float("inf")
 
@@ -464,7 +494,7 @@ def solve_preemptive_gp(
         status_message=" | ".join(status_messages),
         goals=goals,
         u_optimal=u_optimal,
-        u_baseline={feat: float(u_baseline[i]) for i, feat in enumerate(DECISION_FEATURES)},
+        u_baseline={feat: float(u_base_arr[i]) for i, feat in enumerate(features)},
         predicted_responses=preds,
         goal_achievement=achievement,
         total_weighted_deviation=total_dev,
@@ -472,6 +502,7 @@ def solve_preemptive_gp(
         n_decision_vars=n_u,
         n_deviation_vars=n_dev,
         iterations=total_iterations,
+        extrapolation_status=ext_status,
     )
 
 
@@ -563,3 +594,43 @@ def build_default_tep_goals() -> List[GoalSpec]:
             priority=2,
         ),
     ]
+
+
+def build_operational_safety_goals() -> List[GoalSpec]:
+    """Return the canonical three-goal set for TEP operational stability and safety.
+
+    Focuses on maintaining production throughput, reducing compressor electrical load,
+    and strictly stabilizing reactor pressure at nominal setpoint (2705.0 kPa).
+
+    Priority order for Preemptive GP:
+      P1: Meet production quota (>= 24.0 m3/hr, priority 1)
+      P2: Reduce compressor electrical work (target 338.0 kW, priority 2)
+      P3: Exact reactor pressure stabilization (target 2705.0 kPa, priority 3)
+    """
+    return [
+        GoalSpec(
+            name="Production Quota",
+            response_tag="XMEAS_17",
+            target=24.0,
+            direction="max",
+            weight=2.0,
+            priority=1,
+        ),
+        GoalSpec(
+            name="Compressor Power Reduction",
+            response_tag="XMEAS_20",
+            target=338.0,
+            direction="min",
+            weight=1.0,
+            priority=2,
+        ),
+        GoalSpec(
+            name="Pressure Stabilization",
+            response_tag="XMEAS_07",
+            target=2705.0,
+            direction="exact",
+            weight=0.5,
+            priority=3,
+        ),
+    ]
+

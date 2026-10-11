@@ -198,3 +198,27 @@ def test_local_what_if_sensitivity():
     assert len(summary) == len(RESPONSE_TARGETS)
     assert "response" in summary.columns
 
+
+def test_lp_dimension_mismatch(lp_setup):
+    """Verify that dimension mismatches between features and u_baseline raise ValueError."""
+    model, u_base = lp_setup
+    wrong_u = np.zeros(len(u_base) + 2)
+    with pytest.raises(ValueError, match="does not match number of features"):
+        solve_lp_production_maximization(surrogate_model=model, u_baseline=wrong_u)
+
+    with pytest.raises(ValueError, match="does not match number of features"):
+        solve_lp_cost_minimization(surrogate_model=model, u_baseline=wrong_u)
+
+    with pytest.raises(ValueError, match="does not match number of features"):
+        solve_lp_energy_minimization(surrogate_model=model, u_baseline=wrong_u)
+
+
+def test_lp_extrapolation_status(lp_setup):
+    """Verify that LP results contain extrapolation detection diagnostics."""
+    model, u_base = lp_setup
+    res = solve_lp_production_maximization(surrogate_model=model, u_baseline=u_base)
+    assert res.extrapolation_status is not None
+    assert "mahalanobis_dist_sq" in res.extrapolation_status
+    assert "critical_threshold" in res.extrapolation_status
+
+

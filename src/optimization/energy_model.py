@@ -62,5 +62,6 @@ def evaluate_energy_breakdown(data: Union[pd.DataFrame, pd.Series, Dict[str, flo
     return {
         "compressor_power_kw": comp_kw,
         "steam_thermal_power_kw": thermal_kw,
+        "steam_thermal_duty_kw": thermal_kw,
         "total_energy_power_kw": total_kw,
     }

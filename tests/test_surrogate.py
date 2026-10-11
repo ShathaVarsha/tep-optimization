@@ -144,3 +144,27 @@ def test_8variable_surrogate_performance(baseline_data):
     assert model_8.metrics["XMEAS_17"]["train_r2"] > 0.95
     assert model_8.metrics["XMEAS_17"]["cv_mae"] < 0.05
 
+
+def test_fold_metrics_and_holdout_evaluation(baseline_data):
+    """Verify that fold-level details and chronological holdout validation work as expected."""
+    model = ProcessSurrogateModel(model_type="ridge", alpha=10.0, features=DECISION_FEATURES_8)
+    model.fit(baseline_data, cv_splits=5)
+
+    # Check fold metrics preservation
+    assert len(model.fold_metrics) == len(RESPONSE_TARGETS)
+    for target in RESPONSE_TARGETS:
+        folds = model.fold_metrics[target]
+        assert len(folds) == 5
+        for f in folds:
+            assert "fold" in f
+            assert "r2" in f
+            assert "mae" in f
+            assert "rmse" in f
+
+    # Check chronological holdout evaluation (80% train / 20% test)
+    holdout = model.evaluate_chronological_holdout(baseline_data, train_ratio=0.8)
+    assert set(holdout.keys()) == set(RESPONSE_TARGETS)
+    assert holdout["XMEAS_17"]["test_r2"] > 0.99
+    assert holdout["XMEAS_17"]["n_train"] == 400
+    assert holdout["XMEAS_17"]["n_test"] == 100
+

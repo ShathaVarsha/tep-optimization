@@ -14,7 +14,8 @@
 | **Operating Cost Minimization** | $106.40/hr | **$97.73/hr** | **-8.15%** |
 | **Total Energy Minimization** | 485.84 kW | **469.03 kW** | **-3.46%** |
 | Product Flow Surrogate R² | — | **0.9951** | — |
-| Automated Tests | — | **70/70 passed** | 100% |
+| Automated Tests | — | **79/79 passed** | 100% |
+
 
 ---
 
@@ -56,13 +57,14 @@ python -m venv .venv
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Launch the app
+# 3. Launch the app (either entrypoint works)
 streamlit run streamlit_app.py
+# or: streamlit run app.py
 
 # 4. Run all tests
 python -m pytest tests/ -v
 
-# 5. Full numerical validation (32 checks)
+# 5. Full numerical validation (41 checks)
 python validate_results.py
 ```
 
@@ -72,9 +74,10 @@ python validate_results.py
 
 ```
 OR/
-├── streamlit_app.py              # Main dashboard (7 interactive views)
+├── streamlit_app.py              # Main dashboard (8 interactive views)
+├── app.py                        # Lightweight entrypoint launcher
 ├── requirements.txt              # Python dependencies
-├── validate_results.py           # 32-check numerical validation script
+├── validate_results.py           # 41-check numerical validation script
 ├── run_optimization.py           # Reproducible CLI optimization pipeline
 ├── generate_final_plots.py       # Publication-quality figure generator
 │
@@ -95,7 +98,7 @@ OR/
 │   └── analysis/
 │       └── lp_sensitivity.py     # Shadow prices & what-if sensitivity
 │
-├── tests/                        # 70 pytest unit tests (all passing)
+├── tests/                        # 79 pytest unit tests (all passing)
 │   ├── test_data_loader.py
 │   ├── test_cost_energy.py
 │   ├── test_surrogate.py
@@ -107,6 +110,7 @@ OR/
 ├── results/optimization/         # JSON results, CSV summaries, plots
 ├── OR_final_visuals/             # 14 publication-quality figures
 ├── docs/                         # Parameter traceability tables
+├── SCIENTIFIC_VALIDATION_REPORT.md # Rigorous mathematical & scientific audit report
 ├── FINAL_VALIDATION_REPORT.md    # Complete engineering validation report
 └── PRESENTATION_OUTLINE.md       # 15-slide defense presentation outline
 ```

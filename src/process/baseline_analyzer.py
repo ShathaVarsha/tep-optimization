@@ -45,12 +45,22 @@ def test_series_stationarity(
         raise ValueError(f"Series length ({n_pts}) insufficient for window size ({window_size})")
 
     # 1. Augmented Dickey-Fuller unit-root test
-    # Note: suppress warning by handling tuple output
-    adf_result = adfuller(clean_series, autolag="AIC", result_object=False)
-    adf_stat = float(adf_result[0])
-    adf_pvalue = float(adf_result[1])
-    used_lags = int(adf_result[2])
-    crit_5pct = float(adf_result[4]["5%"])
+    # Robust across statsmodels versions supporting either tuple or result_object
+    try:
+        adf_result = adfuller(clean_series, autolag="AIC", result_object=False)
+    except TypeError:
+        adf_result = adfuller(clean_series, autolag="AIC")
+
+    if hasattr(adf_result, "stat"):
+        adf_stat = float(adf_result.stat)
+        adf_pvalue = float(adf_result.pvalue)
+        used_lags = int(adf_result.usedlag)
+        crit_5pct = float(adf_result.critvalues["5%"])
+    else:
+        adf_stat = float(adf_result[0])
+        adf_pvalue = float(adf_result[1])
+        used_lags = int(adf_result[2])
+        crit_5pct = float(adf_result[4]["5%"])
     is_stationary_adf = bool(adf_pvalue < 0.05 and adf_stat < crit_5pct)
 
     # 2. Rolling window statistics

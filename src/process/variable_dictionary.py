@@ -13,7 +13,7 @@ Author: Team B4 (23MNG336: Operational Research)
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 
@@ -627,11 +627,49 @@ VARIABLE_CATALOG: Dict[str, ProcessVariable] = {
 }
 
 
+MEASURED_VARIABLES: List[str] = [tag for tag, v in VARIABLE_CATALOG.items() if not v.is_manipulated]
+MANIPULATED_VARIABLES: List[str] = [tag for tag, v in VARIABLE_CATALOG.items() if v.is_manipulated]
+
+SAFETY_BOUNDS: Dict[str, Dict[str, Optional[float]]] = {
+    tag: {
+        "low_alarm": v.low_alarm,
+        "high_alarm": v.high_alarm,
+        "low_shutdown": v.low_shutdown,
+        "high_shutdown": v.high_shutdown,
+    }
+    for tag, v in VARIABLE_CATALOG.items()
+    if any([v.low_alarm, v.high_alarm, v.low_shutdown, v.high_shutdown])
+}
+
+
 def get_variable_metadata(tag: str) -> ProcessVariable:
     """Retrieve metadata for a specified variable tag."""
     if tag not in VARIABLE_CATALOG:
         raise KeyError(f"Variable tag '{tag}' not found in TEP variable catalog.")
     return VARIABLE_CATALOG[tag]
+
+
+def get_variable_info(tag: str) -> Dict[str, Any]:
+    """Retrieve dictionary information for a variable tag (for UI and summaries)."""
+    var = get_variable_metadata(tag)
+    return {
+        "tag": var.tag,
+        "index": var.index,
+        "name": var.name,
+        "units": var.units,
+        "type": "manipulated" if var.is_manipulated else "measured",
+        "nominal": var.nominal_setpoint,
+        "bounds": (var.min_bound, var.max_bound),
+        "shutdown_limits": (var.low_shutdown, var.high_shutdown),
+        "alarms": (var.low_alarm, var.high_alarm),
+        "description": var.description,
+    }
+
+
+def get_variable_bounds(tag: str) -> Tuple[float, float]:
+    """Retrieve (min, max) bounds for a variable."""
+    var = get_variable_metadata(tag)
+    return var.min_bound, var.max_bound
 
 
 def get_catalog_dataframe() -> pd.DataFrame:
