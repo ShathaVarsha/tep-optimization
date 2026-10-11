@@ -27,7 +27,7 @@ Primary References:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 from scipy.optimize import linprog
@@ -466,7 +466,7 @@ def solve_preemptive_gp(
             priority_sequence.append(float("inf"))
             break
 
-        z_star = float(res.fun)
+        z_star = max(0.0, float(res.fun))
         priority_sequence.append(z_star)
         last_x = res.x.copy()
 

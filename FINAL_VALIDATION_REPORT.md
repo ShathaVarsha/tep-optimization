@@ -22,7 +22,7 @@ Key findings and deliverables:
 6. **Multi-Objective Goal Programming:** Formulated and solved via both Weighted-Sum and Preemptive (Lexicographic) GP, resolving trade-offs between throughput, pressure stability, and compressor work.
 7. **Sensitivity Analysis:** Clear distinction between Simplex shadow prices (dual variables) and local finite-difference what-if response sensitivities.
 8. **Interactive Dashboard:** Complete Streamlit web app (`streamlit_app.py`) providing interactive scenario configuration, parameter tuning, live solver runs, and Plotly visualization.
-9. **Automated Verification:** 88 automated pytest test cases and 50 independent numerical validation checks pass cleanly with zero failures.
+9. **Automated Verification:** 94 automated pytest test cases and 50 independent numerical validation checks pass cleanly with zero failures.
 
 ---
 
@@ -274,13 +274,13 @@ A full-stack application built using Streamlit and Plotly provides 8 interactive
 
 ## 9. Automated Testing & Verification Suite
 
-An 88-test automated test suite was constructed using `pytest`, covering all modules and integrations:
+A 94-test automated test suite was constructed using `pytest`, covering all modules and integrations:
 - `tests/test_data_loader.py` (7 tests): Array shapes, transposition, zero NaN/Inf across all 44 datasets.
 - `tests/test_variable_dictionary.py` (6 tests): Catalog completeness, tag indices, engineering bounds.
 - `tests/test_cost_energy.py` (4 tests): Pricing calculations, thermal duty conversions, baseline d00 costs.
 - `tests/test_surrogate.py` (7 tests): ADF stationarity, Ridge/OLS/Poly fitting, Mahalanobis extrapolation detection, fold-level metric preservation, holdout testing, 8-variable model performance (R² > 0.95).
 - `tests/test_lp.py` (9 tests): Production maximization, cost minimization, energy minimization, response-bounded optimization, LP sensitivity reports, local what-if sensitivity, dimension mismatch validation.
-- `tests/test_goal_programming.py` (38 tests): Weighted-sum and preemptive lexicographic goal formulations, deviation variables, priority sequencing, canonical scenarios, dimension validation.
+- `tests/test_goal_programming.py` (44 tests): Weighted-sum and preemptive lexicographic goal formulations, deviation variables, priority sequencing, canonical scenarios, dimension validation, type annotations, 8-variable surrogate compatibility, strict priority dominance, and solver failure recovery.
 - `tests/test_ui_workflow.py` (8 tests): End-to-end data pipeline, baseline calculations, multi-objective LP execution, GP execution, sensitivity computation.
 - `tests/test_scientific_validation.py` (9 tests): Hand-calculated component purge costs, exact baseline effective price derivation ($5.798963/kmol), full component vs linear proxy cost evaluations, independent mathematical feasibility of all 3 LP solutions, deliberate violation detection, solver-failure handling, analytical LP with known reduced costs/shadow prices, extrapolation diagnostics, and thermodynamic power conversions.
 

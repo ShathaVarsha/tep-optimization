@@ -137,7 +137,7 @@ OR/
 2. **Surrogate Architecture:** Updated `src/models/surrogate_models.py` to support both 7-feature and 8-feature (`+ XMV_11`) sets.
 3. **Energy Objective:** Formulated and verified the Energy Minimization LP objective in `lp_optimizer.py`.
 4. **Interactive Dashboard:** Built and verified `streamlit_app.py` with full backend integration.
-5. **Test Coverage:** Suite expanded to 88 unit tests and 50 independent validation checks.
+5. **Test Coverage:** Suite expanded to 94 unit tests and 50 independent validation checks.
 
 ---
 
@@ -149,5 +149,5 @@ OR/
 | **Phase 2** | Surrogate Enhancements | Supported configurable feature sets; documented R² = 0.9951 Condenser CW breakthrough. |
 | **Phase 3** | Energy Optimization | Formulated explicit Energy Minimization LP objective; verified against steam and electrical models. |
 | **Phase 4** | Interactive Dashboard | Deployed `streamlit_app.py` with multi-scenario comparison and sensitivity views. |
-| **Phase 5** | Test & Validation Suite | Validated 88 tests and 50 numerical checks with zero regressions. |
+| **Phase 5** | Test & Validation Suite | Validated 94 tests and 50 numerical checks with zero regressions. |
 | **Phase 6** | Documentation & Reporting | Generated comprehensive validation reports, audit documentation, and presentation materials. |

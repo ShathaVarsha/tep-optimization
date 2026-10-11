@@ -365,3 +365,122 @@ class TestOperationalSafetyAndDimensions:
         with pytest.raises(ValueError, match="does not match surrogate features"):
             solve_preemptive_gp(model, default_goals, wrong_u_base)
 
+
+# ---------------------------------------------------------------------------
+# 7. Comprehensive Goal Programming Scientific Verification
+# ---------------------------------------------------------------------------
+
+class TestGoalProgrammingVerification:
+    """Scientific validation tests for typing, 8-variable compatibility, and mathematical invariants."""
+
+    def test_gp_type_hints_and_schema_validation(self):
+        """Verify typing.get_type_hints on GPResult and GoalSpec executes with zero NameError."""
+        import typing
+        hints_gp = typing.get_type_hints(GPResult)
+        assert "extrapolation_status" in hints_gp
+        assert "goals" in hints_gp
+        assert "total_weighted_deviation" in hints_gp
+
+        hints_spec = typing.get_type_hints(GoalSpec)
+        assert "target" in hints_spec
+        assert "direction" in hints_spec
+
+    def test_8variable_surrogate_gp_compatibility(self):
+        """Verify Goal Programming operates with the 8-variable surrogate (+ XMV_11)."""
+        from src.models.surrogate_models import DECISION_FEATURES_8
+        df = load_tep_dataset("d00")
+        model_8 = ProcessSurrogateModel(model_type="linear", features=DECISION_FEATURES_8).fit(df)
+        u_base_8 = df[DECISION_FEATURES_8].mean().to_numpy()
+
+        goals = build_operational_safety_goals()
+        r_ws = solve_weighted_sum_gp(model_8, goals, u_base_8, trust_delta=10.0)
+        r_pre = solve_preemptive_gp(model_8, goals, u_base_8, trust_delta=10.0)
+
+        assert r_ws.success is True
+        assert r_pre.success is True
+        assert r_ws.n_decision_vars == 8
+        assert r_pre.n_decision_vars == 8
+        assert "XMV_11" in r_ws.u_optimal
+        assert "XMV_11" in r_pre.u_optimal
+
+        # Check bounds
+        for feat in DECISION_FEATURES_8:
+            base_val = float(df[feat].mean())
+            opt_val = r_ws.u_optimal[feat]
+            assert (base_val - 10.0 - 1e-5) <= opt_val <= (base_val + 10.0 + 1e-5)
+            assert 0.0 <= opt_val <= 100.0
+
+    def test_exact_goal_direction_and_deviation_algebra(self, gp_setup):
+        """Verify that equality goals (exact/target) satisfy f(u) + d_neg - d_pos = g_k."""
+        model, u_base = gp_setup
+        exact_goals = [
+            GoalSpec(name="Exact Pressure", response_tag="XMEAS_07", target=2705.4, direction="exact", weight=1.0, priority=1),
+            GoalSpec(name="Exact Product Flow", response_tag="XMEAS_17", target=22.90, direction="exact", weight=2.0, priority=1),
+        ]
+        res = solve_weighted_sum_gp(model, exact_goals, u_base, trust_delta=5.0)
+        assert res.success is True
+
+        for entry in res.goal_achievement:
+            tag = entry["Response Tag"]
+            target = entry["Target (g_k)"]
+            achieved = entry["Achieved Value"]
+            d_neg = entry["Deviation d_neg"]
+            d_pos = entry["Deviation d_pos"]
+
+            # Mathematical invariant: achieved + d_neg - d_pos == target
+            algebraic_sum = achieved + d_neg - d_pos
+            assert abs(algebraic_sum - target) < 1e-3, (
+                f"Goal {tag}: achieved ({achieved}) + d_neg ({d_neg}) - d_pos ({d_pos}) "
+                f"= {algebraic_sum} != target ({target})"
+            )
+
+    def test_solver_failure_graceful_handling(self, gp_setup, default_goals):
+        """Verify solver handles impossible safety bounds gracefully without crashing."""
+        model, u_base = gp_setup
+        # Baseline pressure is ~2705.4 kPa. Setting max_pressure = 100.0 kPa is impossible.
+        r_ws_fail = solve_weighted_sum_gp(model, default_goals, u_base, max_pressure=100.0)
+        assert r_ws_fail.success is False
+        assert r_ws_fail.total_weighted_deviation == float("inf")
+        assert len(r_ws_fail.goal_achievement) == 0
+
+        r_pre_fail = solve_preemptive_gp(model, default_goals, u_base, max_pressure=100.0)
+        assert r_pre_fail.success is False
+        assert r_pre_fail.total_weighted_deviation == float("inf")
+        assert len(r_pre_fail.goal_achievement) == 0
+
+    def test_preemptive_strict_priority_dominance(self, gp_setup):
+        """Verify that Priority 1 deviation is strictly preserved when solving Priority 2."""
+        model, u_base = gp_setup
+        # Competing goals: aggressive production quota at P1 vs aggressive compressor reduction at P2
+        competing_goals = [
+            GoalSpec(name="High Prod", response_tag="XMEAS_17", target=25.0, direction="max", weight=1.0, priority=1),
+            GoalSpec(name="Low Comp", response_tag="XMEAS_20", target=320.0, direction="min", weight=1.0, priority=2),
+        ]
+
+        # Standalone solve for P1
+        r_p1_standalone = solve_weighted_sum_gp(model, [competing_goals[0]], u_base)
+        z1_standalone = r_p1_standalone.total_weighted_deviation
+
+        # Preemptive solve for P1 then P2
+        r_preemptive = solve_preemptive_gp(model, competing_goals, u_base)
+        assert r_preemptive.success is True
+        assert len(r_preemptive.priority_sequence) == 2
+
+        z1_preemptive = r_preemptive.priority_sequence[0]
+        # P1 in preemptive solve must equal standalone P1 within numerical tolerance
+        assert abs(z1_preemptive - z1_standalone) < 1e-4
+
+    def test_extrapolation_diagnostic_contract(self, gp_setup):
+        """Verify that extrapolation status dictionary has required keys and valid types."""
+        model, u_base = gp_setup
+        goals = build_operational_safety_goals()
+        res = solve_weighted_sum_gp(model, goals, u_base)
+        assert res.extrapolation_status is not None
+        ext = res.extrapolation_status
+        assert "mahalanobis_dist_sq" in ext
+        assert "critical_threshold" in ext
+        assert "overall_valid" in ext
+        assert "box_valid" in ext
+        assert isinstance(ext["mahalanobis_dist_sq"], (int, float))
+        assert isinstance(ext["overall_valid"], (bool, np.bool_))
+

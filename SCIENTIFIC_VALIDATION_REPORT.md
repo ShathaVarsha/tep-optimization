@@ -12,7 +12,7 @@ The project implements:
 1. **Empirical Process Surrogates:** Regularized Ridge and Linear models mapping manipulated valve setpoints (decision vector u) to critical plant state and economic responses (response vector y).
 2. **Linear Programming Formulations:** Solved with the Dual Simplex algorithm (`highs-ds` in SciPy) for Production Maximization, Operating Cost Minimization, and Energy Footprint Minimization.
 3. **Multi-Objective Goal Programming:** Weighted-Sum and Preemptive (Lexicographic) models handling trade-offs between product throughput, compressor power, purge gas loss, and reactor pressure safety.
-4. **Independent Numerical Verification:** Automated end-to-end testing (`validate_results.py`, 50 checks) and unit test suite (`pytest`, 88 tests).
+4. **Independent Numerical Verification:** Automated end-to-end testing (`validate_results.py`, 50 checks) and unit test suite (`pytest`, 94 tests).
 
 ### Software Verification vs. Closed-Loop Plant Validation
 A key distinction in process systems engineering is between algorithmic software verification and physical plant validation:
@@ -197,7 +197,7 @@ Summary of the 50 verification checks in `validate_results.py`:
 | 50 | Preemptive Lexicographic P1 Preservation | z₁ = 0.000000 | ≤ z₁* + 10⁻⁴ | PASS |
  
 - **Numerical Validation Score:** 50/50 Passed (100%)
-- **Automated Test Suite:** 88/88 Passed (100%)
+- **Automated Test Suite:** 94/94 Passed (100%)
 
 ---
 
