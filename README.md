@@ -9,10 +9,10 @@ Data-driven energy, cost, and throughput optimization for the Tennessee Eastman 
 | Optimization Scenario | Baseline | Optimized | Change |
 |---|---|---|---|
 | **Production Maximization** | 22.91 m³/hr | **24.68 m³/hr** | **+7.73%** |
-| **Operating Cost Minimization** | $106.40/hr | **$97.73/hr** | **-8.15%** |
+| **Operating Cost Minimization** | $106.40/hr (proxy) / $106.39/hr (full) | **$97.73/hr (proxy) / $97.71/hr (full)** | **-8.15%** |
 | **Total Energy Minimization** | 485.84 kW | **469.03 kW** | **-3.46%** |
 | Product Flow Surrogate R² | — | **0.9951** | — |
-| Automated Tests | — | **79/79 passed** | 100% |
+| Automated Tests | — | **88/88 passed** | 100% |
 
 ---
 
@@ -82,7 +82,7 @@ OR/
 ├── streamlit_app.py              # Main dashboard application
 ├── app.py                        # Lightweight entrypoint launcher
 ├── requirements.txt              # Project dependencies
-├── validate_results.py           # 41-check numerical validation script
+├── validate_results.py           # 50-check numerical validation script
 ├── run_optimization.py           # Reproducible CLI optimization pipeline
 ├── generate_final_plots.py       # Plot and figure generator
 │
@@ -103,14 +103,15 @@ OR/
 │   └── analysis/
 │       └── lp_sensitivity.py     # Dual shadow prices and local sensitivity
 │
-├── tests/                        # 79 automated pytest cases
+├── tests/                        # 88 automated pytest cases
 │   ├── test_data_loader.py
 │   ├── test_cost_energy.py
 │   ├── test_surrogate.py
 │   ├── test_lp.py
 │   ├── test_goal_programming.py
 │   ├── test_ui_workflow.py
-│   └── test_variable_dictionary.py
+│   ├── test_variable_dictionary.py
+│   └── test_scientific_validation.py
 │
 ├── results/optimization/         # Optimization JSON and CSV records
 ├── OR_final_visuals/             # Exported publication figures
@@ -138,5 +139,5 @@ The dataset and process model are from:
 | Surrogate Models | scikit-learn Ridge Regression |
 | Statistical Testing | statsmodels Augmented Dickey-Fuller (ADF) |
 | Dashboard | Streamlit + Plotly |
-| Test Suite | pytest (79 unit and integration tests) |
+| Test Suite | pytest (88 unit and integration tests) |
 | Language | Python 3.12 |

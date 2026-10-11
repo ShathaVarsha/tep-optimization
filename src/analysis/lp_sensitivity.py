@@ -25,13 +25,20 @@ def generate_variable_sensitivity_table(lp_result: LPResult) -> pd.DataFrame:
     for var, opt_val in lp_result.u_optimal.items():
         base_val = lp_result.u_baseline[var]
         red_cost = lp_result.reduced_costs.get(var, 0.0)
+        if red_cost > 1e-4:
+            status = "At Lower Bound"
+        elif red_cost < -1e-4:
+            status = "At Upper Bound"
+        else:
+            status = "Basic / Interior"
+
         rows.append({
             "Variable Tag": var,
             "Baseline Value": round(base_val, 3),
             "Optimal Setpoint": round(opt_val, 3),
             "Perturbation (Delta)": round(opt_val - base_val, 3),
             "Reduced Cost": round(red_cost, 5),
-            "Status": "At Bound" if abs(red_cost) > 1e-4 else "Basic / Interior",
+            "Status": status,
         })
     return pd.DataFrame(rows)
 
@@ -40,8 +47,8 @@ def generate_constraint_sensitivity_table(lp_result: LPResult) -> pd.DataFrame:
     """Generate Constraints sensitivity table (Shadow Price, Slack, Binding Status)."""
     rows = []
     for c_name, shadow_price in lp_result.shadow_prices.items():
-        # Match slack
-        slack_key = next((k for k in lp_result.slack_values if c_name.split()[0] in k), None)
+        # Match slack by key containment
+        slack_key = next((k for k in lp_result.slack_values if c_name.split()[0] in k or k.split()[0] in c_name), None)
         slack_val = lp_result.slack_values.get(slack_key, 0.0) if slack_key else 0.0
         is_binding = bool(abs(slack_val) < 1e-3)
 
@@ -51,8 +58,8 @@ def generate_constraint_sensitivity_table(lp_result: LPResult) -> pd.DataFrame:
             "Slack / Surplus": round(slack_val, 3),
             "Binding Status": "BINDING" if is_binding else "NOT BINDING",
             "Marginal Worth Interpretation": (
-                f"Improving limit by 1 unit changes objective by {abs(shadow_price):.4f}"
-                if abs(shadow_price) > 1e-5
+                f"Relaxing limit by 1 unit improves objective by {shadow_price:.4f}"
+                if shadow_price > 1e-5
                 else "Constraint has positive slack; zero marginal impact"
             ),
         })

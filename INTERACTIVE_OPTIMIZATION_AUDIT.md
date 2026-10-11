@@ -99,7 +99,7 @@ All four issues were addressed. The controls now have verified mathematical conn
 
 ## 5. Verification Summary
 
-- `pytest tests/`: 79/79 passed in ~3 seconds.
+- `pytest tests/`: 88/88 passed in ~4 seconds.
 - `pytest tests/test_ui_workflow.py`: 8/8 passed.
-- `python validate_results.py`: 41/41 checks passed.
+- `python validate_results.py`: 50/50 checks passed (100%).
 - All 11 operational and economic metrics recalculate dynamically on each scenario solve.

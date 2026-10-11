@@ -158,6 +158,6 @@
   - 8-variable surrogate model achieving R² = 0.9951 for product flow.
   - Dual Simplex LP achieving +7.73% production, -8.15% cost, and -3.46% energy.
   - Multi-objective Goal Programming and sensitivity analysis.
-  - 79 passing automated pytest unit tests and 41 independent validation checks.
+  - 88 passing automated pytest unit tests and 50 independent validation checks.
   - Interactive full-stack Streamlit web application.
 * **Future Work:** Integration with nonlinear MPC (Model Predictive Control) and real-time closed-loop testing in the original Fortran simulation driver.

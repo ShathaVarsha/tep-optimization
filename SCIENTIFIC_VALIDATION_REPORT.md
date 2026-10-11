@@ -12,7 +12,7 @@ The project implements:
 1. **Empirical Process Surrogates:** Regularized Ridge and Linear models mapping manipulated valve setpoints (decision vector u) to critical plant state and economic responses (response vector y).
 2. **Linear Programming Formulations:** Solved with the Dual Simplex algorithm (`highs-ds` in SciPy) for Production Maximization, Operating Cost Minimization, and Energy Footprint Minimization.
 3. **Multi-Objective Goal Programming:** Weighted-Sum and Preemptive (Lexicographic) models handling trade-offs between product throughput, compressor power, purge gas loss, and reactor pressure safety.
-4. **Independent Numerical Verification:** Automated end-to-end testing (`validate_results.py`, 41 checks) and unit test suite (`pytest`, 79 tests).
+4. **Independent Numerical Verification:** Automated end-to-end testing (`validate_results.py`, 50 checks) and unit test suite (`pytest`, 88 tests).
 
 ### Software Verification vs. Closed-Loop Plant Validation
 A key distinction in process systems engineering is between algorithmic software verification and physical plant validation:
@@ -140,9 +140,9 @@ From Downs & Vogel (1993, Section 4):
 ---
 
 ## 6. Verification Benchmark Results
-
-Summary of the 41 verification checks in `validate_results.py`:
-
+ 
+Summary of the 50 verification checks in `validate_results.py`:
+ 
 | # | Check Description | Value | Tolerance | Status |
 | :---: | :--- | :---: | :---: | :---: |
 | 1 | Dataset row count (`d00.dat`) | 500 | [499, 501] | PASS |
@@ -171,24 +171,33 @@ Summary of the 41 verification checks in `validate_results.py`:
 | 24 | LP1 Prod Max Optimized Throughput | 24.6813 m³/hr | [24.00, 25.50] | PASS |
 | 25 | LP1 Prod Max Throughput Gain | +7.73% | [5.00%, 10.00%] | PASS |
 | 26 | LP1 Solver Status | Status 7 (Optimal) | Optimal | PASS |
-| 27 | LP2 Cost Min Baseline Cost | $106.40/hr | [$104.00, $108.00] | PASS |
-| 28 | LP2 Cost Min Optimized Cost | $97.73/hr | [$94.00, $101.00] | PASS |
-| 29 | LP2 Cost Min Cost Reduction | -8.15% | [5.00%, 12.00%] | PASS |
-| 30 | LP2 Solver Status | Status 7 (Optimal) | Optimal | PASS |
-| 31 | LP3 Energy Min Baseline Energy | 485.84 kW | [482.00, 490.00] | PASS |
-| 32 | LP3 Energy Min Optimized Energy | 469.03 kW | [463.00, 478.00] | PASS |
-| 33 | LP3 Energy Min Footprint Reduction | -3.46% | [2.00%, 7.00%] | PASS |
-| 34 | LP3 Solver Status | Status 7 (Optimal) | Optimal | PASS |
-| 35 | Reactor Pressure Safety Bound | 2702.7 kPa | ≤ 2800.0 kPa | PASS |
-| 36 | Compressor Power Safety Bound | 337.8 kW | ≤ 355.0 kW | PASS |
-| 37 | Goal Programming Scenario A (Weighted-Sum) | Feasible | Feasible | PASS |
-| 38 | Goal Programming Scenario A (Preemptive) | Feasible (3 levels) | Feasible | PASS |
-| 39 | Goal Programming Scenario B (Weighted-Sum) | Feasible | Feasible | PASS |
-| 40 | Goal Programming Scenario B (Preemptive) | Feasible (2 levels) | Feasible | PASS |
-| 41 | Preemptive Lexicographic P1 Preservation | z₁ = 0.000000 | ≤ z₁* + 10⁻⁴ | PASS |
-
-- **Numerical Validation Score:** 41/41 Passed (100%)
-- **Automated Test Suite:** 79/79 Passed (100%)
+| 27 | LP1 Independent Feasibility Check | Feasible (28/28 bounds) | Violations = 0 | PASS |
+| 28 | LP2 Cost Min LP Baseline Cost | $106.40/hr | [$104.00, $108.00] | PASS |
+| 29 | LP2 Cost Min LP Optimized Cost | $97.73/hr | [$94.00, $101.00] | PASS |
+| 30 | LP2 Cost Min LP Cost Reduction | -8.15% | [5.00%, 12.00%] | PASS |
+| 31 | LP2 Solver Status | Status 7 (Optimal) | Optimal | PASS |
+| 32 | LP2 Cost Min Full Baseline Cost | $106.39/hr | [$104.00, $108.00] | PASS |
+| 33 | LP2 Cost Min Full Optimized Cost | $97.71/hr | [$94.00, $101.00] | PASS |
+| 34 | LP2 Cost Min Full Cost Reduction | -8.15% | [5.00%, 12.00%] | PASS |
+| 35 | LP2 Independent Feasibility Check | Feasible (29/29 bounds) | Violations = 0 | PASS |
+| 36 | LP3 Energy Min Baseline Energy | 485.84 kW | [482.00, 490.00] | PASS |
+| 37 | LP3 Energy Min Optimized Energy | 469.03 kW | [463.00, 478.00] | PASS |
+| 38 | LP3 Energy Min Footprint Reduction | -3.46% | [2.00%, 7.00%] | PASS |
+| 39 | LP3 Solver Status | Status 7 (Optimal) | Optimal | PASS |
+| 40 | LP3 Independent Feasibility Check | Feasible (29/29 bounds) | Violations = 0 | PASS |
+| 41 | Reactor Pressure Safety Bound | 2702.7 kPa | ≤ 2800.0 kPa | PASS |
+| 42 | Compressor Power Safety Bound | 337.8 kW | ≤ 355.0 kW | PASS |
+| 43 | Analytical LP Known Optimum Check | x* = (4.0, 2.0), z* = 18.0 | Exact Match | PASS |
+| 44 | Analytical LP Reduced Costs Check | rc = (-3.0, 0.0) | Exact Match | PASS |
+| 45 | Analytical LP Shadow Price Check | sp = 5.0 | Exact Match | PASS |
+| 46 | Goal Programming Scenario A (Weighted-Sum) | Feasible | Feasible | PASS |
+| 47 | Goal Programming Scenario A (Preemptive) | Feasible (3 levels) | Feasible | PASS |
+| 48 | Goal Programming Scenario B (Weighted-Sum) | Feasible | Feasible | PASS |
+| 49 | Goal Programming Scenario B (Preemptive) | Feasible (2 levels) | Feasible | PASS |
+| 50 | Preemptive Lexicographic P1 Preservation | z₁ = 0.000000 | ≤ z₁* + 10⁻⁴ | PASS |
+ 
+- **Numerical Validation Score:** 50/50 Passed (100%)
+- **Automated Test Suite:** 88/88 Passed (100%)
 
 ---
 

@@ -1,9 +1,10 @@
-"""End-to-end numerical validation — TEP Optimization Project.
-Mirrors run_optimization.py exactly to reproduce the published results.
+"""End-to-end numerical and scientific validation — TEP Optimization Project.
+Mirrors run_optimization.py exactly to reproduce and verify the published results.
 Run:  python validate_results.py
 """
 import numpy as np
 import pandas as pd
+from scipy.optimize import linprog
 
 from src.data.tep_loader import load_tep_dataset
 from src.models.surrogate_models import (
@@ -13,8 +14,13 @@ from src.optimization.lp_optimizer import (
     solve_lp_production_maximization,
     solve_lp_cost_minimization,
     solve_lp_energy_minimization,
+    verify_solution_feasibility,
 )
-from src.optimization.cost_model import evaluate_operating_cost_breakdown
+from src.optimization.cost_model import (
+    evaluate_operating_cost_breakdown,
+    evaluate_operating_cost,
+    calculate_cost_reduction_pct,
+)
 from src.optimization.energy_model import evaluate_energy_breakdown
 from src.optimization.goal_programming import (
     GoalSpec,
@@ -37,13 +43,13 @@ def check(label, value, lo, hi, unit=""):
 
 sep = "=" * 70
 print(sep)
-print("  TEP OPTIMIZATION - FULL NUMERICAL VALIDATION")
+print("  TEP OPTIMIZATION - COMPREHENSIVE SCIENTIFIC VALIDATION")
 print(sep)
 
 # ------------------------------------------------------------------
-# 1. DATA LOADING
+# 1. DATA LOADING & INTEGRITY
 # ------------------------------------------------------------------
-print("\n[1/5] Data Loading & Integrity")
+print("\n[1/6] Data Loading & Integrity")
 df = load_tep_dataset('d00')
 check("Dataset rows",    float(len(df)),    499, 501)
 check("Dataset columns", float(df.shape[1]), 51,  53)
@@ -54,9 +60,9 @@ print("  %s Inf values: %d  [expected 0]" % (OK if inf_ct == 0 else ERR, inf_ct)
 results += [nan_ct == 0, inf_ct == 0]
 
 # ------------------------------------------------------------------
-# 2. BASELINE ENERGY & COST
+# 2. BASELINE ENERGY & COST MODELS (Downs & Vogel 1993)
 # ------------------------------------------------------------------
-print("\n[2/5] Baseline Energy & Cost Models (Downs & Vogel 1993)")
+print("\n[2/6] Baseline Energy & Cost Models (Downs & Vogel 1993)")
 cost   = evaluate_operating_cost_breakdown(df)
 energy = evaluate_energy_breakdown(df)
 check("Baseline total cost",    cost["total_operating_cost_usd_hr"],  104.0, 108.0, "$/hr")
@@ -87,12 +93,12 @@ print("  %s Steam thermal conversion check (kg/hr * 2257 / 3600): err=%.2e" % (O
 results.append(ok_steam_form)
 
 # ------------------------------------------------------------------
-# 3. SURROGATE MODELS  (using sm.metrics and holdout after fit())
+# 3. SURROGATE MODELS (TimeSeriesSplit CV k=5 & Holdout 80/20)
 # ------------------------------------------------------------------
-print("\n[3/5] 8-Variable Ridge Surrogate Models (TimeSeriesSplit CV k=5 & Holdout 80/20)")
+print("\n[3/6] 8-Variable Ridge Surrogate Models (TimeSeriesSplit CV k=5 & Holdout 80/20)")
 sm = ProcessSurrogateModel(model_type='ridge', alpha=10.0, features=DECISION_FEATURES_8)
 sm.fit(df, cv_splits=5)
-mdict = sm.metrics   # {response_tag: {cv_r2, cv_mae, ...}}
+mdict = sm.metrics
 for tag, label, min_r2 in [
     ("XMEAS_17", "Product Flow     (XMEAS_17)", 0.99),
     ("XMEAS_10", "Purge Rate       (XMEAS_10)", 0.85),
@@ -120,9 +126,9 @@ print("  %s Chronological Holdout (80/20) Product Flow Test R2: %.4f  [min: 0.99
 results.append(ok_holdout)
 
 # ------------------------------------------------------------------
-# 4. LP OPTIMIZATION  (replicate run_optimization.py exactly)
+# 4. LP OPTIMIZATION AND INDEPENDENT FEASIBILITY VERIFICATION
 # ------------------------------------------------------------------
-print("\n[4/5] Linear Programming Results (HiGHS Dual Simplex)")
+print("\n[4/6] Linear Programming Results & Independent Feasibility Checks")
 u_base      = df[DECISION_FEATURES_8].mean().to_numpy()
 resp_bounds = {t: (float(df[t].min()), float(df[t].max())) for t in RESPONSE_TARGETS}
 feat_bounds = {f: (float(df[f].min()), float(df[f].max())) for f in DECISION_FEATURES_8}
@@ -153,47 +159,95 @@ r3 = solve_lp_energy_minimization(
     trust_delta=10.0, response_bounds=resp_bounds, feature_bounds=feat_bounds,
 )
 
-# Production maximization  (published: baseline=22.91 -> opt=24.68, +7.73%)
+# Production maximization (published: baseline=22.91 -> opt=24.68, +7.73%)
 check("Prod Max  baseline",   r1.baseline_objective_value,  22.5, 23.3, "m3/hr")
 check("Prod Max  optimized",  r1.objective_value,           24.0, 25.5, "m3/hr")
 check("Prod Max  improvement",r1.improvement_pct,            5.0, 10.0, "%")
 print("  %s Prod Max solver: %s" % (OK if r1.success else ERR, r1.status_message[:60]))
 results.append(r1.success)
 
-# Cost minimization  (published: $106.40 -> $97.73, -8.15%)
-check("Cost Min  baseline",   r2.baseline_objective_value, 104.0, 108.0, "$/hr")
-check("Cost Min  optimized",  r2.objective_value,           94.0, 101.0, "$/hr")
-check("Cost Min  improvement",r2.improvement_pct,            5.0,  12.0, "%")
+# Independent Feasibility for P1
+f1 = verify_solution_feasibility(r1, sm, response_bounds=resp_bounds, feature_bounds=feat_bounds)
+ok_f1 = f1["is_feasible"]
+print("  %s Prod Max Independent Feasibility: feasible=%s (%d/%d bounds satisfied, max_viol=%.2e)" % (
+    OK if ok_f1 else ERR, ok_f1, f1["num_feasible"], f1["num_constraints_checked"], f1["max_violation"]))
+results.append(ok_f1)
+
+# Cost minimization (LP objective proxy: $106.40 -> $97.73, -8.15%)
+check("Cost Min LP baseline", r2.baseline_objective_value, 104.0, 108.0, "$/hr")
+check("Cost Min LP optimized",r2.objective_value,           94.0, 101.0, "$/hr")
+check("Cost Min LP improve",  r2.improvement_pct,            5.0,  12.0, "%")
 print("  %s Cost Min solver: %s" % (OK if r2.success else ERR, r2.status_message[:60]))
 results.append(r2.success)
 
-# Energy minimization  (published: 485.84 -> 469.03, -3.46%)
+# Full component-based cost recalculation check
+check("Cost Min Full baseline", r2.full_cost_baseline, 104.0, 108.0, "$/hr")
+check("Cost Min Full optimized",r2.full_cost_optimal,   94.0, 101.0, "$/hr")
+check("Cost Min Full improve",  r2.full_cost_improvement_pct, 5.0, 12.0, "%")
+
+# Independent Feasibility for P2
+f2 = verify_solution_feasibility(r2, sm, target_production=target_prod, response_bounds=resp_bounds, feature_bounds=feat_bounds)
+ok_f2 = f2["is_feasible"]
+print("  %s Cost Min Independent Feasibility: feasible=%s (%d/%d bounds satisfied, max_viol=%.2e)" % (
+    OK if ok_f2 else ERR, ok_f2, f2["num_feasible"], f2["num_constraints_checked"], f2["max_violation"]))
+results.append(ok_f2)
+
+# Energy minimization (published: 485.84 -> 469.03, -3.46%)
 check("Energy Min baseline",  r3.baseline_objective_value, 482.0, 490.0, "kW")
 check("Energy Min optimized", r3.objective_value,          463.0, 478.0, "kW")
 check("Energy Min improve",   r3.improvement_pct,            2.0,   7.0, "%")
 print("  %s Energy Min solver: %s" % (OK if r3.success else ERR, r3.status_message[:60]))
 results.append(r3.success)
 
-# Safety constraints
-if r1.predicted_responses:
-    press = r1.predicted_responses.get("XMEAS_07", 9999.0)
-    comp  = r1.predicted_responses.get("XMEAS_20", 9999.0)
-    ok_p = press <= 2800.0
-    ok_c = comp  <= 355.0
-    print("  %s Safety: Reactor Pressure %.1f kPa  (<= 2800 kPa limit)" % (OK if ok_p else ERR, press))
-    print("  %s Safety: Compressor Power  %.1f kW   (<= 355 kW rating)" % (OK if ok_c else ERR, comp))
-    results += [ok_p, ok_c]
+# Independent Feasibility for P3
+f3 = verify_solution_feasibility(r3, sm, target_production=target_prod, response_bounds=resp_bounds, feature_bounds=feat_bounds)
+ok_f3 = f3["is_feasible"]
+print("  %s Energy Min Independent Feasibility: feasible=%s (%d/%d bounds satisfied, max_viol=%.2e)" % (
+    OK if ok_f3 else ERR, ok_f3, f3["num_feasible"], f3["num_constraints_checked"], f3["max_violation"]))
+results.append(ok_f3)
 
-# Extrapolation boundary reporting on LP optimal points
-if r1.extrapolation_status is not None:
-    d2 = r1.extrapolation_status["mahalanobis_dist_sq"]
-    crit = r1.extrapolation_status["critical_threshold"]
-    print("  [DIAG] Prod Max Extrapolation Check: D_M^2=%.1f (crit=%.1f) -> trust boundary pushes beyond unperturbed baseline variance" % (d2, crit))
+# Safety constraints evaluation
+press = r1.predicted_responses.get("XMEAS_07", 9999.0)
+comp  = r1.predicted_responses.get("XMEAS_20", 9999.0)
+ok_p = press <= 2800.0
+ok_c = comp  <= 355.0
+print("  %s Safety: Reactor Pressure %.1f kPa  (<= 2800 kPa limit)" % (OK if ok_p else ERR, press))
+print("  %s Safety: Compressor Power  %.1f kW   (<= 355 kW rating)" % (OK if ok_c else ERR, comp))
+results += [ok_p, ok_c]
+
+# Extrapolation domain status across all 3 solutions
+for name, r in [("Prod Max", r1), ("Cost Min", r2), ("Energy Min", r3)]:
+    d2 = r.extrapolation_status["mahalanobis_dist_sq"]
+    crit = r.extrapolation_status["critical_threshold"]
+    b_val = r.extrapolation_status["box_valid"]
+    print("  [DIAG] %-10s Extrapolation Status: D_M^2=%.1f (crit=%.1f, box_valid=%s)" % (name, d2, crit, b_val))
 
 # ------------------------------------------------------------------
-# 5. GOAL PROGRAMMING (Dual Canonical Scenarios)
+# 5. SENSITIVITY AND KNOWN ANALYTICAL LP VERIFICATION
 # ------------------------------------------------------------------
-print("\n[5/5] Goal Programming (Weighted-Sum & Preemptive Lexicographic)")
+print("\n[5/6] Sensitivity & Analytical LP Verification")
+# Analytical LP: min 2*x1 + 5*x2 s.t. x1 + x2 >= 6 (-x1 - x2 <= -6), 0 <= x1 <= 4, 0 <= x2 <= 10
+# Optimal: x1=4 (at upper bound, reduced cost = -3), x2=2 (basic, reduced cost = 0), shadow price = +5
+res_an = linprog(c=[2.0, 5.0], A_ub=[[-1.0, -1.0]], b_ub=[-6.0], bounds=[(0.0, 4.0), (0.0, 10.0)], method="highs-ds")
+ok_an_sol = bool(res_an.success and abs(res_an.x[0] - 4.0) < 1e-4 and abs(res_an.x[1] - 2.0) < 1e-4)
+an_rc_x1 = float(res_an.lower.marginals[0] + res_an.upper.marginals[0])
+an_rc_x2 = float(res_an.lower.marginals[1] + res_an.upper.marginals[1])
+an_sp = float(-res_an.ineqlin.marginals[0])
+ok_an_rc = bool(abs(an_rc_x1 - (-3.0)) < 1e-4 and abs(an_rc_x2) < 1e-4)
+ok_an_sp = bool(abs(an_sp - 5.0) < 1e-4)
+
+print("  %s Analytical LP known solution: x*=(%.1f, %.1f), z*=%.1f" % (
+    OK if ok_an_sol else ERR, res_an.x[0], res_an.x[1], res_an.fun))
+print("  %s Analytical LP reduced costs: rc_x1=%.1f (expected -3.0), rc_x2=%.1f (expected 0.0)" % (
+    OK if ok_an_rc else ERR, an_rc_x1, an_rc_x2))
+print("  %s Analytical LP shadow price: sp=%.1f (expected 5.0)" % (
+    OK if ok_an_sp else ERR, an_sp))
+results += [ok_an_sol, ok_an_rc, ok_an_sp]
+
+# ------------------------------------------------------------------
+# 6. GOAL PROGRAMMING (Dual Canonical Scenarios)
+# ------------------------------------------------------------------
+print("\n[6/6] Goal Programming (Weighted-Sum & Preemptive Lexicographic)")
 
 # Scenario A: Operational Stability & Safety (Production, Compressor Power, Reactor Pressure)
 goals_safety = build_operational_safety_goals()
@@ -237,4 +291,3 @@ pct     = 100.0 * passed / total if total else 0
 verdict = "ALL CHECKS PASSED" if passed == total else ("ISSUES: %d check(s) FAILED" % (total - passed))
 print("  RESULT: %d/%d checks passed (%.0f%%)  --  %s" % (passed, total, pct, verdict))
 print(sep)
-

@@ -406,6 +406,10 @@ def compute_all_operational_metrics(
     steam_cost = steam_rate * PRICE_STEAM
     total_cost = purge_cost + comp_cost + steam_cost
 
+    # Independent full component-based cost evaluation
+    full_eval = evaluate_operating_cost(preds)
+    full_cost = float(full_eval["full_operating_cost_usd_hr"])
+
     return {
         "product_flow_m3_hr": prod_flow,
         "reactor_pressure_kpa": press,
@@ -418,6 +422,7 @@ def compute_all_operational_metrics(
         "compressor_cost_usd_hr": comp_cost,
         "steam_cost_usd_hr": steam_cost,
         "total_cost_usd_hr": total_cost,
+        "full_cost_usd_hr": full_cost,
     }
 
 
@@ -1159,11 +1164,11 @@ elif view_selection.startswith("5."):
 
         st.markdown("### Optimal Valve Setpoints vs Baseline")
         v_tbl = generate_variable_sensitivity_table(lp_res)
-        st.dataframe(v_tbl.style.format({"Baseline": "{:.3f}", "Optimal": "{:.3f}", "Delta": "{:+.3f}", "Delta_Pct": "{:+.2f}%", "Lower_Bound": "{:.3f}", "Upper_Bound": "{:.3f}", "Reduced_Cost": "{:.4f}"}), use_container_width=True)
+        st.dataframe(v_tbl.style.format({"Baseline Value": "{:.3f}", "Optimal Setpoint": "{:.3f}", "Perturbation (Delta)": "{:+.3f}", "Reduced Cost": "{:+.5f}"}), use_container_width=True)
 
         st.markdown("### Constraints & Dual Shadow Prices")
         c_tbl = generate_constraint_sensitivity_table(lp_res)
-        st.dataframe(c_tbl.style.format({"Predicted_Value": "{:.3f}", "Bound_Limit": "{:.3f}", "Slack": "{:.3f}", "Shadow_Price": "{:.4f}"}), use_container_width=True)
+        st.dataframe(c_tbl.style.format({"Shadow Price (Dual Value)": "{:.4f}", "Slack / Surplus": "{:.3f}"}), use_container_width=True)
 
         fig_bar = go.Figure()
         fig_bar.add_trace(go.Bar(name="Baseline Valve Setpoint (%)", x=DECISION_FEATURES_8, y=[lp_res.u_baseline.get(f, 0.0) for f in DECISION_FEATURES_8], marker_color="#94a3b8"))
@@ -1332,11 +1337,11 @@ elif view_selection.startswith("6."):
 
         st.markdown("### Optimal Valve Positions vs Baseline")
         v_tbl = generate_variable_sensitivity_table(res)
-        st.dataframe(v_tbl.style.format({"Baseline": "{:.3f}", "Optimal": "{:.3f}", "Delta": "{:+.3f}", "Delta_Pct": "{:+.2f}%", "Lower_Bound": "{:.3f}", "Upper_Bound": "{:.3f}", "Reduced_Cost": "{:.4f}"}), use_container_width=True)
+        st.dataframe(v_tbl.style.format({"Baseline Value": "{:.3f}", "Optimal Setpoint": "{:.3f}", "Perturbation (Delta)": "{:+.3f}", "Reduced Cost": "{:+.5f}"}), use_container_width=True)
 
         st.markdown("### Constraints & Slack Margins")
         c_tbl = generate_constraint_sensitivity_table(res)
-        st.dataframe(c_tbl.style.format({"Predicted_Value": "{:.3f}", "Bound_Limit": "{:.3f}", "Slack": "{:.3f}", "Shadow_Price": "{:.4f}"}), use_container_width=True)
+        st.dataframe(c_tbl.style.format({"Shadow Price (Dual Value)": "{:.4f}", "Slack / Surplus": "{:.3f}"}), use_container_width=True)
 
         fig_bar = go.Figure()
         fig_bar.add_trace(go.Bar(name="Baseline Valve Setpoint (%)", x=DECISION_FEATURES_8, y=[res.u_baseline.get(f, 0.0) for f in DECISION_FEATURES_8], marker_color="#94a3b8"))
