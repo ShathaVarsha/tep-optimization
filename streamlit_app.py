@@ -58,6 +58,7 @@ from src.models.surrogate_models import (
     RESPONSE_TARGETS,
 )
 from src.optimization.cost_model import (
+    evaluate_operating_cost,
     evaluate_operating_cost_breakdown,
     PRICE_PURGE_DEFAULT,
     PRICE_ELECTRICITY,
@@ -1162,18 +1163,80 @@ elif view_selection.startswith("5."):
             energy_pct = ((m["total_energy_kw"] - bm["total_energy_kw"]) / bm["total_energy_kw"]) * 100.0
             render_metric_card("Total Energy Footprint", f"{m['total_energy_kw']:.1f} kW", f"{energy_pct:+.2f}%", "negative" if energy_pct > 0 else "positive", f"Baseline: {bm['total_energy_kw']:.1f} kW", "Combined Footprint")
 
-        st.markdown("### Optimal Valve Setpoints vs Baseline")
+        st.markdown("### 📊 Production Optimization Visualizations")
+        col_p1, col_p2 = st.columns([1, 1])
+        with col_p1:
+            fig_prod = go.Figure()
+            fig_prod.add_trace(go.Bar(
+                name="Baseline Operation",
+                x=["Product Flow (XMEAS_17)"],
+                y=[bm["product_flow_m3_hr"]],
+                marker_color="#94a3b8",
+                text=[f"{bm['product_flow_m3_hr']:.2f} m³/hr"],
+                textposition="auto",
+            ))
+            delta_flow = m["product_flow_m3_hr"] - bm["product_flow_m3_hr"]
+            fig_prod.add_trace(go.Bar(
+                name="HiGHS LP Optimal",
+                x=["Product Flow (XMEAS_17)"],
+                y=[m["product_flow_m3_hr"]],
+                marker_color="#0284c7",
+                text=[f"{m['product_flow_m3_hr']:.2f} m³/hr ({prod_pct:+.2f}%, {delta_flow:+.2f})"],
+                textposition="auto",
+            ))
+            max_prod_bound = resp_bounds.get("XMEAS_17", (None, None))[1] if resp_bounds else None
+            if max_prod_bound is not None:
+                fig_prod.add_hline(
+                    y=max_prod_bound,
+                    line_dash="dash",
+                    line_color="#dc2626",
+                    annotation_text=f"Max Empirical Bound ({max_prod_bound:.2f} m³/hr)",
+                    annotation_position="top left",
+                )
+            fig_prod.update_layout(
+                title="Finished Product Flow: Baseline vs Optimal LP Policy",
+                barmode="group",
+                template="plotly_white",
+                height=360,
+                yaxis_title="Product Flow (m³/hr)",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            )
+            st.plotly_chart(fig_prod, use_container_width=True)
+
+        with col_p2:
+            deltas = [lp_res.u_optimal.get(f, 0.0) - lp_res.u_baseline.get(f, 0.0) for f in DECISION_FEATURES_8]
+            colors = ["#16a34a" if d >= 0 else "#dc2626" for d in deltas]
+            fig_deltas = go.Figure()
+            fig_deltas.add_trace(go.Bar(
+                x=DECISION_FEATURES_8,
+                y=deltas,
+                marker_color=colors,
+                text=[f"{d:+.2f}%" for d in deltas],
+                textposition="auto",
+                name="Valve Setpoint Shift Δ (%)",
+            ))
+            fig_deltas.add_hline(y=0.0, line_color="#475569", line_width=1.0)
+            fig_deltas.update_layout(
+                title="Manipulated Variable Adjustments (Δ% from Baseline)",
+                template="plotly_white",
+                height=360,
+                yaxis_title="Valve Setpoint Delta (%)",
+                xaxis_title="Decision Control Valves",
+            )
+            st.plotly_chart(fig_deltas, use_container_width=True)
+
+        st.markdown("### 📋 Optimal Valve Setpoints & Sensitivity Table")
         v_tbl = generate_variable_sensitivity_table(lp_res)
         st.dataframe(v_tbl.style.format({"Baseline Value": "{:.3f}", "Optimal Setpoint": "{:.3f}", "Perturbation (Delta)": "{:+.3f}", "Reduced Cost": "{:+.5f}"}), use_container_width=True)
 
-        st.markdown("### Constraints & Dual Shadow Prices")
+        st.markdown("### 🛡️ Constraints & Dual Shadow Prices")
         c_tbl = generate_constraint_sensitivity_table(lp_res)
         st.dataframe(c_tbl.style.format({"Shadow Price (Dual Value)": "{:.4f}", "Slack / Surplus": "{:.3f}"}), use_container_width=True)
 
         fig_bar = go.Figure()
         fig_bar.add_trace(go.Bar(name="Baseline Valve Setpoint (%)", x=DECISION_FEATURES_8, y=[lp_res.u_baseline.get(f, 0.0) for f in DECISION_FEATURES_8], marker_color="#94a3b8"))
         fig_bar.add_trace(go.Bar(name="Optimal Valve Setpoint (%)", x=DECISION_FEATURES_8, y=[lp_res.u_optimal.get(f, 0.0) for f in DECISION_FEATURES_8], marker_color="#0284c7"))
-        fig_bar.update_layout(title="Decision Variable Adjustment Profile", barmode="group", template="plotly_white", height=350)
+        fig_bar.update_layout(title="Decision Variable Absolute Setpoint Profile (%)", barmode="group", template="plotly_white", height=350)
         st.plotly_chart(fig_bar, use_container_width=True)
     else:
         st.markdown(f"<div class='status-error'>✗ Solver Infeasible: {lp_res.status_message}</div>", unsafe_allow_html=True)
@@ -1335,19 +1398,165 @@ elif view_selection.startswith("6."):
         with k4:
             render_metric_card("Total Energy Footprint", f"{m['total_energy_kw']:.1f} kW", f"Duty: {m['steam_thermal_duty_kw']:.1f} kW", "neutral", f"Baseline: {bm['total_energy_kw']:.1f} kW", "Combined Footprint")
 
-        st.markdown("### Optimal Valve Positions vs Baseline")
-        v_tbl = generate_variable_sensitivity_table(res)
-        st.dataframe(v_tbl.style.format({"Baseline Value": "{:.3f}", "Optimal Setpoint": "{:.3f}", "Perturbation (Delta)": "{:+.3f}", "Reduced Cost": "{:+.5f}"}), use_container_width=True)
+        tab_cost_view, tab_energy_view, tab_valves_view = st.tabs([
+            "💰 Cost Optimization Visuals",
+            "⚡ Energy Optimization Visuals",
+            "🔧 Decision Variables & Constraints",
+        ])
 
-        st.markdown("### Constraints & Slack Margins")
-        c_tbl = generate_constraint_sensitivity_table(res)
-        st.dataframe(c_tbl.style.format({"Shadow Price (Dual Value)": "{:.4f}", "Slack / Surplus": "{:.3f}"}), use_container_width=True)
+        with tab_cost_view:
+            st.markdown("#### 💰 Operating Cost Comparison & Component Breakdown")
+            col_c1, col_c2 = st.columns([1, 1])
+            with col_c1:
+                cost_saving_proxy = bm["total_cost_usd_hr"] - m["total_cost_usd_hr"]
+                cost_pct_proxy = (cost_saving_proxy / bm["total_cost_usd_hr"]) * 100.0 if bm["total_cost_usd_hr"] > 0 else 0.0
+                cost_saving_full = bm["full_cost_usd_hr"] - m["full_cost_usd_hr"]
+                cost_pct_full = (cost_saving_full / bm["full_cost_usd_hr"]) * 100.0 if bm["full_cost_usd_hr"] > 0 else 0.0
 
-        fig_bar = go.Figure()
-        fig_bar.add_trace(go.Bar(name="Baseline Valve Setpoint (%)", x=DECISION_FEATURES_8, y=[res.u_baseline.get(f, 0.0) for f in DECISION_FEATURES_8], marker_color="#94a3b8"))
-        fig_bar.add_trace(go.Bar(name="Optimal Valve Setpoint (%)", x=DECISION_FEATURES_8, y=[res.u_optimal.get(f, 0.0) for f in DECISION_FEATURES_8], marker_color="#0284c7"))
-        fig_bar.update_layout(title="Decision Variable Adjustment Profile", barmode="group", template="plotly_white", height=350)
-        st.plotly_chart(fig_bar, use_container_width=True)
+                fig_cost_comp = go.Figure()
+                fig_cost_comp.add_trace(go.Bar(
+                    name="Baseline ($/hr)",
+                    x=["LP Objective Proxy", "Full Component Valuation"],
+                    y=[bm["total_cost_usd_hr"], bm["full_cost_usd_hr"]],
+                    marker_color="#94a3b8",
+                    text=[f"${bm['total_cost_usd_hr']:.2f}/hr", f"${bm['full_cost_usd_hr']:.2f}/hr"],
+                    textposition="auto",
+                ))
+                fig_cost_comp.add_trace(go.Bar(
+                    name="Optimized ($/hr)",
+                    x=["LP Objective Proxy", "Full Component Valuation"],
+                    y=[m["total_cost_usd_hr"], m["full_cost_usd_hr"]],
+                    marker_color="#16a34a",
+                    text=[
+                        f"${m['total_cost_usd_hr']:.2f}/hr (-{cost_pct_proxy:.2f}%, -${cost_saving_proxy:.2f})",
+                        f"${m['full_cost_usd_hr']:.2f}/hr (-{cost_pct_full:.2f}%, -${cost_saving_full:.2f})",
+                    ],
+                    textposition="auto",
+                ))
+                fig_cost_comp.update_layout(
+                    title="Total Operating Cost: Baseline vs Optimal ($/hr)",
+                    barmode="group",
+                    template="plotly_white",
+                    height=360,
+                    yaxis_title="Hourly Operating Cost ($/hr)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                )
+                st.plotly_chart(fig_cost_comp, use_container_width=True)
+
+            with col_c2:
+                fig_cost_breakdown = go.Figure()
+                fig_cost_breakdown.add_trace(go.Bar(
+                    name="Baseline ($/hr)",
+                    x=["Purge Gas Loss", "Compressor Electricity", "Stripper Steam"],
+                    y=[bm["purge_cost_usd_hr"], bm["compressor_cost_usd_hr"], bm["steam_cost_usd_hr"]],
+                    marker_color="#94a3b8",
+                    text=[f"${bm['purge_cost_usd_hr']:.2f}", f"${bm['compressor_cost_usd_hr']:.2f}", f"${bm['steam_cost_usd_hr']:.2f}"],
+                    textposition="auto",
+                ))
+                fig_cost_breakdown.add_trace(go.Bar(
+                    name="Optimized ($/hr)",
+                    x=["Purge Gas Loss", "Compressor Electricity", "Stripper Steam"],
+                    y=[m["purge_cost_usd_hr"], m["compressor_cost_usd_hr"], m["steam_cost_usd_hr"]],
+                    marker_color="#0284c7",
+                    text=[f"${m['purge_cost_usd_hr']:.2f}", f"${m['compressor_cost_usd_hr']:.2f}", f"${m['steam_cost_usd_hr']:.2f}"],
+                    textposition="auto",
+                ))
+                fig_cost_breakdown.update_layout(
+                    title="Cost Component Breakdown (Downs & Vogel Table 4)",
+                    barmode="group",
+                    template="plotly_white",
+                    height=360,
+                    yaxis_title="Component Rate ($/hr)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                )
+                st.plotly_chart(fig_cost_breakdown, use_container_width=True)
+
+            st.caption("💡 **Economic Formulation:** Purge gas loss ($5.80/kmol), compressor electricity ($0.0536/kWh), and stripper steam ($0.00318/kg). Purge losses account for >80% of costs; throttling purge valve XMV_06 drives the savings.")
+
+        with tab_energy_view:
+            st.markdown("#### ⚡ Process Energy Footprint & Component Breakdown")
+            col_e1, col_e2 = st.columns([1, 1])
+            with col_e1:
+                energy_saving = bm["total_energy_kw"] - m["total_energy_kw"]
+                energy_pct_val = (energy_saving / bm["total_energy_kw"]) * 100.0 if bm["total_energy_kw"] > 0 else 0.0
+
+                fig_energy_comp = go.Figure()
+                fig_energy_comp.add_trace(go.Bar(
+                    name="Baseline Energy Proxy (kW)",
+                    x=["Combined Energy-Footprint Proxy"],
+                    y=[bm["total_energy_kw"]],
+                    marker_color="#94a3b8",
+                    text=[f"{bm['total_energy_kw']:.1f} kW"],
+                    textposition="auto",
+                ))
+                fig_energy_comp.add_trace(go.Bar(
+                    name="Optimized Energy Proxy (kW)",
+                    x=["Combined Energy-Footprint Proxy"],
+                    y=[m["total_energy_kw"]],
+                    marker_color="#0284c7",
+                    text=[f"{m['total_energy_kw']:.1f} kW (-{energy_pct_val:.2f}%, -{energy_saving:.1f} kW)"],
+                    textposition="auto",
+                ))
+                fig_energy_comp.update_layout(
+                    title="Combined Energy Footprint: Baseline vs Optimal",
+                    barmode="group",
+                    template="plotly_white",
+                    height=360,
+                    yaxis_title="Equivalent Power Proxy (kW)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                )
+                st.plotly_chart(fig_energy_comp, use_container_width=True)
+
+            with col_e2:
+                comp_pct_step = ((m["compressor_power_kw"] - bm["compressor_power_kw"]) / bm["compressor_power_kw"]) * 100.0 if bm["compressor_power_kw"] > 0 else 0.0
+                steam_pct_step = ((m["steam_thermal_duty_kw"] - bm["steam_thermal_duty_kw"]) / bm["steam_thermal_duty_kw"]) * 100.0 if bm["steam_thermal_duty_kw"] > 0 else 0.0
+
+                fig_energy_breakdown = go.Figure()
+                fig_energy_breakdown.add_trace(go.Bar(
+                    name="Baseline (kW)",
+                    x=["Compressor Electrical Power (kWe)", "Steam Thermal Duty (kWth)"],
+                    y=[bm["compressor_power_kw"], bm["steam_thermal_duty_kw"]],
+                    marker_color="#94a3b8",
+                    text=[f"{bm['compressor_power_kw']:.1f} kWe", f"{bm['steam_thermal_duty_kw']:.1f} kWth"],
+                    textposition="auto",
+                ))
+                fig_energy_breakdown.add_trace(go.Bar(
+                    name="Optimized (kW)",
+                    x=["Compressor Electrical Power (kWe)", "Steam Thermal Duty (kWth)"],
+                    y=[m["compressor_power_kw"], m["steam_thermal_duty_kw"]],
+                    marker_color="#16a34a",
+                    text=[
+                        f"{m['compressor_power_kw']:.1f} kWe ({comp_pct_step:+.2f}%)",
+                        f"{m['steam_thermal_duty_kw']:.1f} kWth ({steam_pct_step:+.2f}%)",
+                    ],
+                    textposition="auto",
+                ))
+                fig_energy_breakdown.update_layout(
+                    title="Energy Streams: Electrical Power vs Thermal Duty",
+                    barmode="group",
+                    template="plotly_white",
+                    height=360,
+                    yaxis_title="Power / Thermal Duty (kW)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                )
+                st.plotly_chart(fig_energy_breakdown, use_container_width=True)
+
+            st.caption("⚡ **Energy Engineering Classification:** Compressor draw represents true electrical power (rated limit: 355 kW); stripper steam duty represents latent heat thermal equivalent (2257 kJ/kg). Combined metric is a project-defined energy-footprint proxy.")
+
+        with tab_valves_view:
+            st.markdown("#### Optimal Valve Positions vs Baseline")
+            v_tbl = generate_variable_sensitivity_table(res)
+            st.dataframe(v_tbl.style.format({"Baseline Value": "{:.3f}", "Optimal Setpoint": "{:.3f}", "Perturbation (Delta)": "{:+.3f}", "Reduced Cost": "{:+.5f}"}), use_container_width=True)
+
+            st.markdown("#### Constraints & Slack Margins")
+            c_tbl = generate_constraint_sensitivity_table(res)
+            st.dataframe(c_tbl.style.format({"Shadow Price (Dual Value)": "{:.4f}", "Slack / Surplus": "{:.3f}"}), use_container_width=True)
+
+            fig_bar = go.Figure()
+            fig_bar.add_trace(go.Bar(name="Baseline Valve Setpoint (%)", x=DECISION_FEATURES_8, y=[res.u_baseline.get(f, 0.0) for f in DECISION_FEATURES_8], marker_color="#94a3b8"))
+            fig_bar.add_trace(go.Bar(name="Optimal Valve Setpoint (%)", x=DECISION_FEATURES_8, y=[res.u_optimal.get(f, 0.0) for f in DECISION_FEATURES_8], marker_color="#0284c7"))
+            fig_bar.update_layout(title="Decision Variable Adjustment Profile", barmode="group", template="plotly_white", height=350)
+            st.plotly_chart(fig_bar, use_container_width=True)
     else:
         st.markdown(
             f"""
@@ -1537,7 +1746,129 @@ elif view_selection.startswith("7."):
         with k4:
             render_metric_card("Total Weighted Deviation", f"{gp_res.total_weighted_deviation:.4f}", "Optimal Slack", "positive", "Feasible Trade-off", "GP Objective")
 
-        st.markdown("#### Goal Achievement Breakdown")
+        st.markdown("### 📊 Goal Programming Visualizations & Analysis")
+        col_g1, col_g2 = st.columns([1, 1])
+        with col_g1:
+            ach_df = pd.DataFrame(gp_res.goal_achievement)
+            units_map = {"XMEAS_17": "m³/hr", "XMEAS_20": "kW", "XMEAS_07": "kPa", "XMEAS_10": "kscmh"}
+
+            fig_gp_targets = go.Figure()
+            norm_targets = [100.0] * len(ach_df)
+            norm_achieved = [(row["Achieved Value"] / row["Target (g_k)"]) * 100.0 if row["Target (g_k)"] != 0 else 0.0 for _, row in ach_df.iterrows()]
+            text_achieved = [f"{row['Achieved Value']:.2f} {units_map.get(row['Response Tag'], '')} ({pct:.1f}%)" for pct, (_, row) in zip(norm_achieved, ach_df.iterrows())]
+
+            fig_gp_targets.add_trace(go.Bar(
+                name="Target Benchmark (100%)",
+                x=ach_df["Goal Name"],
+                y=norm_targets,
+                marker_color="#94a3b8",
+                text=[f"Target: {row['Target (g_k)']:.2f} {units_map.get(row['Response Tag'], '')}" for _, row in ach_df.iterrows()],
+                textposition="auto",
+            ))
+            fig_gp_targets.add_trace(go.Bar(
+                name="Achieved State (%)",
+                x=ach_df["Goal Name"],
+                y=norm_achieved,
+                marker_color="#0284c7",
+                text=text_achieved,
+                textposition="auto",
+            ))
+            fig_gp_targets.add_hline(y=100.0, line_dash="dash", line_color="#475569", line_width=1.0)
+            fig_gp_targets.update_layout(
+                title="Target vs Achieved Value per Operational Goal",
+                barmode="group",
+                template="plotly_white",
+                height=360,
+                yaxis_title="Normalized % of Target Value",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            )
+            st.plotly_chart(fig_gp_targets, use_container_width=True)
+
+        with col_g2:
+            fig_gp_dev = go.Figure()
+            fig_gp_dev.add_trace(go.Bar(
+                name="Underachievement (d⁻)",
+                x=ach_df["Goal Name"],
+                y=ach_df["Deviation d_neg"],
+                marker_color="#f59e0b",
+                text=[f"d⁻={v:.4f}" if v > 1e-4 else "0.00" for v in ach_df["Deviation d_neg"]],
+                textposition="auto",
+            ))
+            fig_gp_dev.add_trace(go.Bar(
+                name="Overachievement (d⁺)",
+                x=ach_df["Goal Name"],
+                y=ach_df["Deviation d_pos"],
+                marker_color="#ef4444",
+                text=[f"d⁺={v:.4f}" if v > 1e-4 else "0.00" for v in ach_df["Deviation d_pos"]],
+                textposition="auto",
+            ))
+            fig_gp_dev.update_layout(
+                title="Goal Slack & Deviations (d⁻ underachievement, d⁺ overachievement)",
+                barmode="group",
+                template="plotly_white",
+                height=360,
+                yaxis_title="Deviation Penalty Magnitude",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            )
+            st.plotly_chart(fig_gp_dev, use_container_width=True)
+
+        # Comparative Formulation: Weighted-Sum vs Preemptive (Lexicographic)
+        st.markdown("#### ⚖️ Weighted-Sum vs Preemptive (Lexicographic) Formulation Comparison")
+        active_goals_list = [
+            GoalSpec(name="Product Throughput", response_tag="XMEAS_17", target=target_prod, direction="max", weight=w_prod, priority=p_prod),
+            GoalSpec(name="Compressor Work", response_tag="XMEAS_20", target=target_comp, direction="min", weight=w_comp, priority=p_comp),
+            GoalSpec(name="Reactor Pressure", response_tag="XMEAS_07", target=target_press, direction="exact", weight=w_press, priority=p_press),
+        ]
+        res_weighted = solve_weighted_sum_gp(surrogate=model_lin, goals=active_goals_list, u_baseline=u_base, trust_delta=gp_trust_delta)
+        res_preemptive = solve_preemptive_gp(surrogate=model_lin, goals=active_goals_list, u_baseline=u_base, trust_delta=gp_trust_delta)
+
+        m_w = compute_all_operational_metrics(res_weighted.u_optimal, model_ridge)
+        m_p = compute_all_operational_metrics(res_preemptive.u_optimal, model_ridge)
+
+        gp_comp_df = pd.DataFrame({
+            "Process Response": ["Product Flow (m³/hr)", "Compressor Work (kW)", "Reactor Pressure (kPa)", "Purge Rate (kscmh)"],
+            "Target Value": [f"{target_prod:.2f}", f"≤ {target_comp:.1f}", f"{target_press:.1f}", "—"],
+            "Baseline Reference": [f"{bm['product_flow_m3_hr']:.2f}", f"{bm['compressor_power_kw']:.1f}", f"{bm['reactor_pressure_kpa']:.1f}", f"{bm['purge_rate_kscmh']:.3f}"],
+            "Weighted-Sum Result": [f"{m_w['product_flow_m3_hr']:.2f}", f"{m_w['compressor_power_kw']:.1f}", f"{m_w['reactor_pressure_kpa']:.1f}", f"{m_w['purge_rate_kscmh']:.3f}"],
+            "Lexicographic Result": [f"{m_p['product_flow_m3_hr']:.2f}", f"{m_p['compressor_power_kw']:.1f}", f"{m_p['reactor_pressure_kpa']:.1f}", f"{m_p['purge_rate_kscmh']:.3f}"],
+        })
+        st.dataframe(gp_comp_df, use_container_width=True, hide_index=True)
+
+        fig_gp_compare = go.Figure()
+        obj_names = ["Product Flow (m³/hr)", "Compressor Work (kW)", "Reactor Pressure (kPa)"]
+        base_vals = [bm['product_flow_m3_hr'], bm['compressor_power_kw'], bm['reactor_pressure_kpa']]
+        w_vals = [m_w['product_flow_m3_hr'], m_w['compressor_power_kw'], m_w['reactor_pressure_kpa']]
+        p_vals = [m_p['product_flow_m3_hr'], m_p['compressor_power_kw'], m_p['reactor_pressure_kpa']]
+
+        fig_gp_compare.add_trace(go.Bar(name="Baseline (100%)", x=obj_names, y=[100.0, 100.0, 100.0], marker_color="#94a3b8"))
+        fig_gp_compare.add_trace(go.Bar(
+            name="Weighted-Sum Policy",
+            x=obj_names,
+            y=[(w/b)*100.0 for w, b in zip(w_vals, base_vals)],
+            marker_color="#0284c7",
+            text=[f"{w:.2f}" for w in w_vals],
+            textposition="auto",
+        ))
+        fig_gp_compare.add_trace(go.Bar(
+            name="Lexicographic Policy",
+            x=obj_names,
+            y=[(p/b)*100.0 for p, b in zip(p_vals, base_vals)],
+            marker_color="#10b981",
+            text=[f"{p:.2f}" for p in p_vals],
+            textposition="auto",
+        ))
+        fig_gp_compare.add_hline(y=100.0, line_dash="dot", line_color="#64748b")
+        fig_gp_compare.update_layout(
+            title="Formulation Comparison: Weighted-Sum vs Preemptive Lexicographic (% of Baseline)",
+            barmode="group",
+            template="plotly_white",
+            height=340,
+            yaxis_title="% of Baseline Operating Value",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+        st.plotly_chart(fig_gp_compare, use_container_width=True)
+
+        st.markdown("#### Goal Achievement Breakdown Table")
         st.dataframe(pd.DataFrame(gp_res.goal_achievement), use_container_width=True, hide_index=True)
 
         st.markdown("#### Recommended Manipulated Valve Settings vs Baseline")
