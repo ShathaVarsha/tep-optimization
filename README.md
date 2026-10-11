@@ -1,14 +1,12 @@
-# TEP Process Optimization Suite
+# Tennessee Eastman Process Optimization Suite
 
-## Chemical Manufacturing Energy and Cost Optimization Using the Tennessee Eastman Process
-
-**Course:** 23MNG336: Operational Research | **Team:** B4 | **Level:** Final-Year B.Tech AI & Data Science
+Data-driven energy, cost, and throughput optimization for the Tennessee Eastman Process (TEP) benchmark.
 
 ---
 
 ## Key Results
 
-| Optimization Scenario | Baseline | Optimized | Improvement |
+| Optimization Scenario | Baseline | Optimized | Change |
 |---|---|---|---|
 | **Production Maximization** | 22.91 m³/hr | **24.68 m³/hr** | **+7.73%** |
 | **Operating Cost Minimization** | $106.40/hr | **$97.73/hr** | **-8.15%** |
@@ -16,89 +14,96 @@
 | Product Flow Surrogate R² | — | **0.9951** | — |
 | Automated Tests | — | **79/79 passed** | 100% |
 
+---
+
+## Overview
+
+This project applies data-driven optimization to the Tennessee Eastman Process (TEP), an established industrial benchmark developed by Downs & Vogel (1993). The plant model simulates a two-phase chemical process comprising a reactor, condenser, recycle compressor, vapor-liquid separator, and stripper column.
+
+### Core Workflow
+
+1. **Data Ingestion**  
+   Loads all 44 benchmark `.dat` files with automated array transposition detection and integrity auditing (0 missing values, 0 infinities).
+
+2. **Stationarity Checks**  
+   Augmented Dickey-Fuller (ADF) unit-root tests confirm steady-state operation across key process variables in baseline dataset `d00.dat`.
+
+3. **Surrogate Modeling**  
+   Trains L₂-regularized Ridge Regression models (α = 10) using 5-fold TimeSeriesSplit cross-validation, mapping manipulated valve positions to critical plant responses.
+
+4. **8-Variable Decision Space (`XMV_11`)**  
+   Adding the condenser cooling water valve (`XMV_11`) resolves product flow prediction, increasing cross-validated R² on finished product flow from -0.063 to **0.9951** due to vapor-liquid condensation equilibrium.
+
+5. **Linear Programming**  
+   Formulates local linear approximations solved via the SciPy HiGHS Dual Simplex solver (`highs-ds`) with trust regions and empirical response bounding.
+
+6. **Goal Programming**  
+   Solves multi-objective trade-offs between throughput quotas, compressor electrical load, and reactor pressure stabilization using both Weighted-Sum and Preemptive (Lexicographic) formulations.
+
+7. **Sensitivity Analysis**  
+   Calculates Simplex shadow prices (dual variables) and local finite-difference gradients to identify binding bottlenecks.
+
+8. **Interactive Dashboard**  
+   Full-featured Streamlit application with live solver runs, scenario comparison, and interactive parameter adjustment.
 
 ---
 
-## What This Project Does
-
-This end-to-end Operations Research project applies data-driven optimization to the industry-standard **Tennessee Eastman Process (TEP)** benchmark — a realistic chemical plant simulation used worldwide in process control research.
-
-### Core Pipeline
-
-1. **Data Ingestion** — Loads all 44 official `.dat` benchmark files (Downs & Vogel, 1993) with automated orientation detection and integrity auditing (0 NaN, 0 Inf values)
-
-2. **Baseline Validation** — Augmented Dickey-Fuller (ADF) unit-root tests confirm true statistical steady-state operation across all 7 key process variables
-
-3. **Surrogate Modeling** — Trains L₂-regularized Ridge Regression (α=10) models via 5-fold TimeSeriesSplit cross-validation, mapping 8 manipulated valve setpoints → 5 process responses
-
-4. **The XMV_11 Discovery** — Adding the Condenser Cooling Water Valve (XMV_11) to the decision space elevated product flow prediction from R²=−0.063 to **R²=0.9951**
-
-5. **Linear Programming** — SciPy HiGHS Dual Simplex solver with trust regions and empirical response bounding achieves all four optimization objectives
-
-6. **Goal Programming** — Weighted-Sum and Preemptive (Lexicographic) formulations handle competing trade-offs between throughput, cost, and pressure stability
-
-7. **Sensitivity Analysis** — LP shadow prices (dual variables) and local finite-difference what-if gradients quantify constraint value and variable influence
-
-8. **Interactive Dashboard** — Full-stack Streamlit web app with live solver execution, Plotly charts, and CSV exports
-
----
-
-## Running Locally
+## Getting Started
 
 ### Prerequisites
 - Python 3.12+
-- All packages in `requirements.txt`
+- Packages listed in `requirements.txt`
 
 ```bash
-# 1. Create virtual environment
+# 1. Create and activate virtual environment
 python -m venv .venv
 .venv\Scripts\Activate.ps1   # Windows PowerShell
 
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Launch the app (either entrypoint works)
+# 3. Launch the dashboard
 streamlit run streamlit_app.py
 # or: streamlit run app.py
 
-# 4. Run all tests
+# 4. Run automated tests
 python -m pytest tests/ -v
 
-# 5. Full numerical validation (41 checks)
+# 5. Run end-to-end numerical validation
 python validate_results.py
 ```
 
 ---
 
-## Project Structure
+## Repository Structure
 
 ```
 OR/
-├── streamlit_app.py              # Main dashboard (8 interactive views)
+├── streamlit_app.py              # Main dashboard application
 ├── app.py                        # Lightweight entrypoint launcher
-├── requirements.txt              # Python dependencies
+├── requirements.txt              # Project dependencies
 ├── validate_results.py           # 41-check numerical validation script
 ├── run_optimization.py           # Reproducible CLI optimization pipeline
-├── generate_final_plots.py       # Publication-quality figure generator
+├── generate_final_plots.py       # Plot and figure generator
 │
 ├── src/
 │   ├── data/
-│   │   ├── tep_loader.py         # TEP benchmark data loader
+│   │   ├── tep_loader.py         # Benchmark data ingestion
 │   │   └── statistics_generator.py
 │   ├── process/
-│   │   ├── baseline_analyzer.py  # ADF stationarity + drift analysis
-│   │   └── variable_dictionary.py
+│   │   ├── baseline_analyzer.py  # Stationarity and drift checks
+│   │   └── variable_dictionary.py# 52-variable definitions and bounds
 │   ├── models/
-│   │   └── surrogate_models.py   # Ridge / OLS / Polynomial surrogates
+│   │   └── surrogate_models.py   # Ridge, OLS, and polynomial surrogates
 │   ├── optimization/
-│   │   ├── lp_optimizer.py       # HiGHS Dual Simplex LP
-│   │   ├── goal_programming.py   # Weighted-Sum & Preemptive GP
-│   │   ├── cost_model.py         # Downs & Vogel economic cost model
-│   │   └── energy_model.py       # Thermodynamic energy model
+│   │   ├── lp_optimizer.py       # Dual Simplex LP formulations
+│   │   ├── goal_programming.py   # Weighted-Sum and Preemptive GP
+│   │   ├── cost_model.py         # Downs & Vogel operating cost model
+│   │   └── energy_model.py       # Thermodynamic electrical and thermal power
 │   └── analysis/
-│       └── lp_sensitivity.py     # Shadow prices & what-if sensitivity
+│       └── lp_sensitivity.py     # Dual shadow prices and local sensitivity
 │
-├── tests/                        # 79 pytest unit tests (all passing)
+├── tests/                        # 79 automated pytest cases
 │   ├── test_data_loader.py
 │   ├── test_cost_energy.py
 │   ├── test_surrogate.py
@@ -107,23 +112,21 @@ OR/
 │   ├── test_ui_workflow.py
 │   └── test_variable_dictionary.py
 │
-├── results/optimization/         # JSON results, CSV summaries, plots
-├── OR_final_visuals/             # 14 publication-quality figures
+├── results/optimization/         # Optimization JSON and CSV records
+├── OR_final_visuals/             # Exported publication figures
 ├── docs/                         # Parameter traceability tables
-├── SCIENTIFIC_VALIDATION_REPORT.md # Rigorous mathematical & scientific audit report
-├── FINAL_VALIDATION_REPORT.md    # Complete engineering validation report
-└── PRESENTATION_OUTLINE.md       # 15-slide defense presentation outline
+├── SCIENTIFIC_VALIDATION_REPORT.md # Mathematical and physical validation details
+├── FINAL_VALIDATION_REPORT.md    # Complete numerical validation results
+└── PRESENTATION_OUTLINE.md       # Slide deck outline and speaking notes
 ```
 
 ---
 
-## Data Source
+## Benchmark Source
 
-The Tennessee Eastman Process benchmark dataset is from:
-> Downs, J.J. and Vogel, E.F. (1993). "A plant-wide industrial process control problem."
+The dataset and process model are from:
+> Downs, J.J. and Vogel, E.F. (1993). "A plant-wide industrial process control problem."  
 > *Computers & Chemical Engineering*, 17(3), 245–255.
-
-The dataset contains 44 `.dat` files (training + testing, normal + 21 fault modes) with 52 process variables.
 
 ---
 
@@ -131,9 +134,9 @@ The dataset contains 44 `.dat` files (training + testing, normal + 21 fault mode
 
 | Component | Technology |
 |---|---|
-| LP Solver | SciPy HiGHS Dual Simplex |
+| LP Solver | SciPy HiGHS Dual Simplex (`highs-ds`) |
 | Surrogate Models | scikit-learn Ridge Regression |
-| Statistical Testing | statsmodels ADF |
-| Dashboard | Streamlit 1.65 + Plotly |
-| Testing | pytest (70 tests) |
+| Statistical Testing | statsmodels Augmented Dickey-Fuller (ADF) |
+| Dashboard | Streamlit + Plotly |
+| Test Suite | pytest (79 unit and integration tests) |
 | Language | Python 3.12 |
